@@ -94,7 +94,7 @@ class Disk:
     def delete(self, pattern: str) -> int:
         """Delete files matching filename pattern"""
         files = len(self.files)
-        self.files = [file for file in self.files if not fnmatch.fnmatch(file.name, pattern)]
+        self.files = [file for file in self.files if not fnmatch.fnmatch(file.name.lower(), pattern.lower())]
         return files - len(self.files)
 
     def bam(self) -> None:
