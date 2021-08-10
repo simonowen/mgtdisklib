@@ -18,6 +18,26 @@ class DiskTests(unittest.TestCase):
         disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
         self.assertIsNotNone(disk)
 
+    def test_open_masterdos_label(self):
+        disk = Disk.open(f'{TESTDIR}/masterdos_label.mgt.gz')
+        self.assertEqual(disk.type, DiskType.MASTERDOS)
+        self.assertEqual(disk.label, 'ABCDEFGHIJ')
+
+    def test_open_masterdos_short_label(self):
+        disk = Disk.open(f'{TESTDIR}/masterdos_short_label.mgt.gz')
+        self.assertEqual(disk.type, DiskType.MASTERDOS)
+        self.assertEqual(disk.label, 'abc')
+
+    def test_open_masterdos_no_label(self):
+        disk = Disk.open(f'{TESTDIR}/masterdos_no_label.mgt.gz')
+        self.assertEqual(disk.type, DiskType.MASTERDOS)
+        self.assertIsNone(disk.label)
+
+    def test_open_bdos_label(self):
+        disk = Disk.open(f'{TESTDIR}/bdos_label.mgt.gz')
+        self.assertEqual(disk.type, DiskType.BDOS)
+        self.assertEqual(disk.label, 'ABCDEFGHIJKLMNOP')
+
     def test_from_image(self):
         image = Image.open(f'{TESTDIR}/samdos2.mgt.gz')
         disk = Disk.from_image(image)
