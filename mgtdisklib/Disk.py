@@ -4,7 +4,8 @@
 
 import struct, fnmatch, operator, functools
 from enum import Enum
-from typing import Tuple
+from typing import List, Tuple, Optional
+from bitarray import bitarray
 
 from .Image import Image, MGTImage
 from .File import File, FileType
@@ -15,13 +16,13 @@ class DiskType(Enum):
     BDOS = 3
 
 class Disk:
-    def __init__(self):
-        self.type = DiskType.SAMDOS
-        self.dir_tracks = 4
-        self.label = None
-        self.serial = 0
-        self.files = []
-        self.compressed = False
+    def __init__(self) -> None:
+        self.type: DiskType = DiskType.SAMDOS
+        self.dir_tracks: int = 4
+        self.label: Optional[str] = None
+        self.serial: Optional[int] = None
+        self.files: List[File] = []
+        self.compressed: bool = False
 
     @staticmethod
     def open(path: str):
@@ -33,21 +34,22 @@ class Disk:
     def from_image(image: Image):
         """Construct a Disk object from a disk image"""
         disk = Disk()
+        label_raw: Optional[bytes] = None
 
         entry0 = image.read_sector(0, 1)
         if entry0[232:232+4] == bytes('BDOS', 'ascii'):
             disk.type = DiskType.BDOS
             if entry0[210]:
-                disk.label = entry0[210:210+10] + entry0[250:250+6]
+                label_raw = entry0[210:210+10] + entry0[250:250+6]
         elif entry0[210] != 0 and entry0[210] != 0xff:
             disk.type = DiskType.MASTERDOS
             disk.dir_tracks = max(4, min(4 + entry0[255], 39))
             if entry0[210] != ord('*'):
-                 disk.label = entry0[210:210+10]
-            disk.serial = struct.unpack('<H', entry0[252:252+2])
+                 label_raw = entry0[210:210+10]
+            disk.serial = struct.unpack('<H', entry0[252:252+2])[0]
 
-        if disk.label:
-            disk.label = bytes(map(lambda x: x & 0x7f, disk.label)).decode('ascii', errors='replace').rstrip()
+        if label_raw:
+            disk.label = bytes(map(lambda x: x & 0x7f, label_raw)).decode('ascii', errors='replace').rstrip()
 
         for i in range(disk.dir_tracks * image.spt * 2):
             entry = Disk.read_dir(image, i)
@@ -97,7 +99,7 @@ class Disk:
         self.files = [file for file in self.files if not fnmatch.fnmatch(file.name.lower(), pattern.lower())]
         return files - len(self.files)
 
-    def bam(self) -> None:
+    def bam(self) -> bitarray:
         """Combined Bitmap Address Map for all files"""
         return functools.reduce(operator.or_, (file.sector_map for file in self.files))
 
@@ -117,7 +119,7 @@ class Disk:
         print(f"\n{len(self.files):2} files, {free_slots:2} free slots, {used_sectors/2:3}K used, {free_sectors/2:3}K free")
 
     @staticmethod
-    def dir_position(index: int, spt: int = 10) -> Tuple:
+    def dir_position(index: int, spt: int = 10) -> Tuple[int, int, int]:
         """Calculate offset in image for zero-based directory entry"""
         track = index // (spt * 2)
         sector = 1 + (index % (spt * 2)) // 2
@@ -164,7 +166,7 @@ class Disk:
         return data
 
     @staticmethod
-    def write_data(image: Image, type: FileType, track: int, sector: int, data: int) -> None:
+    def write_data(image: Image, type: FileType, track: int, sector: int, data: bytes) -> Tuple[int, int]:
         """Write file data, returning next unused sector location"""
         chunk_size = File.data_bytes_per_sector(type)
 
@@ -180,16 +182,13 @@ class Disk:
             else:
                 chunk += bytes((next_track, next_sector))
 
-            try:
-                image.write_sector(track, sector, chunk)
-                track, sector = next_track, next_sector
-            except:
-                raise RuntimeError('data area is out of space')
+            image.write_sector(track, sector, chunk)
+            track, sector = next_track, next_sector
 
         return track, sector
 
     @staticmethod
-    def next_sector(track: int, sector: int, spt: int = 10) -> Tuple:
+    def next_sector(track: int, sector: int, spt: int = 10) -> Tuple[int, int]:
         sector += 1
         if sector > spt:
             sector = 1

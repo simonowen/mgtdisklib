@@ -3,13 +3,14 @@
 # Part of https://github.com/simonowen/mgtdisklib
 
 import os, gzip
+from typing import Optional
 
 class Image:
-    def __init__(self, *, spt: int = 10):
-        self.path = None
-        self.spt = spt
-        self.compressed = False
-        self.data = bytearray(80 * 2 * self.spt * 512)
+    def __init__(self, *, spt: int = 10) -> None:
+        self.path: Optional[str] = None
+        self.spt: int = spt
+        self.compressed: bool = False
+        self.data: bytearray = bytearray(80 * 2 * self.spt * 512)
 
     @staticmethod
     def open(path: str):

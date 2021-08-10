@@ -9,10 +9,10 @@ class DiskTests(unittest.TestCase):
         disk = Disk()
         self.assertEqual(disk.type, DiskType.SAMDOS)
         self.assertEqual(disk.dir_tracks, 4)
-        self.assertEqual(disk.label, None)
-        self.assertEqual(disk.serial, 0)
         self.assertEqual(disk.files, [])
-        self.assertEqual(disk.compressed, False)
+        self.assertFalse(disk.compressed)
+        self.assertIsNone(disk.label)
+        self.assertIsNone(disk.serial)
 
     def test_open(self):
         disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
@@ -160,7 +160,7 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(data, data2)
         self.assertEqual(image.read_sector(4, 10)[510:], bytes((5, 1)))
         Disk.write_data, image, 207, 10, bytes(510)
-        self.assertRaises(RuntimeError, Disk.write_data, image, FileType.CODE, 207, 10, bytes(2 * 510))
+        self.assertRaises(ValueError, Disk.write_data, image, FileType.CODE, 207, 10, bytes(2 * 510))
 
     def test_write_data_9spt(self):
         image = Image.open(f'{TESTDIR}/samdos2.mgt.gz')
@@ -171,7 +171,7 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(data, data2)
         self.assertEqual(image2.read_sector(4, 9)[510:], bytes((5, 1)))
         Disk.write_data, image2, 207, 9, bytes(510)
-        self.assertRaises(RuntimeError, Disk.write_data, image2, FileType.CODE, 207, 9, bytes(2 * 510))
+        self.assertRaises(ValueError, Disk.write_data, image2, FileType.CODE, 207, 9, bytes(2 * 510))
 
     def test_next_sector(self):
         self.assertEqual(Disk.next_sector(0, 1), (0, 2))

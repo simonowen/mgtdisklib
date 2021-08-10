@@ -5,7 +5,7 @@
 import os, struct
 from enum import IntEnum
 from datetime import datetime
-from typing import Tuple
+from typing import Tuple, Optional
 from bitarray import bitarray   # python -m pip install bitarray
 
 FILE_TYPES = { 'NONE':0, 'ZX_BASIC':1, 'ZX_DATA':2, 'ZX_DATA_STR':3, 'ZX_CODE':4,
@@ -26,30 +26,46 @@ FileType = IntEnum('FileType', FILE_TYPES)
 
 class File:
     def __init__(self):
-        self.type = FileType.NONE
+        self.type: FileType = FileType.NONE
+        self.data = bytearray()
+        self.entry: bytes = bytes()
+        self.hidden: bool = False
+        self.protected: bool = False
+        self.name_raw: bytes = bytes()
+        self.name: str = ''
+        self.start_track: Optional[int] = None
+        self.start_sector: Optional[int] = None
+        self.sector_map: bitarray = bitarray(endian='little')
+        self.sectors: int = 0
+        self.start: Optional[int] = None
+        self.length: Optional[int] = None
+        self.execute: Optional[int] = None
+        self.time: Optional[datetime] = None
+        self.dir: Optional[int] = None
+        self.data_var: Optional[str] = None
+        self.screen_mode: Optional[int] = None
 
     def __str__(self) -> str:
         """String representation of File, like directory text"""
         str = f'{self.name:10} {self.sectors:4}  '
 
-        type = self.type & 0x1f
-        str += TYPE_NAMES.get(type, 'WHAT?')
+        str += TYPE_NAMES.get(self.type, 'WHAT?')
 
-        if type == FileType.BASIC:
+        if self.type == FileType.BASIC:
             if self.execute is not None:
                 str += f'{self.execute:6}'
-        elif type == FileType.CODE:
+        elif self.type == FileType.CODE:
             str += f' {self.start:6},{self.length}'
             if self.execute is not None:
                 str += f',{self.execute}'
-        elif type == FileType.SCREEN:
+        elif self.type == FileType.SCREEN:
             str += f' [mode {self.screen_mode}]'
-        elif type in (FileType.DATA, FileType.DATA_STR, FileType.ZX_DATA, FileType.ZX_DATA_STR):
+        elif self.type in (FileType.DATA, FileType.DATA_STR, FileType.ZX_DATA, FileType.ZX_DATA_STR):
             str += f' [{self.data_var}]'
-        elif type == FileType.ZX_BASIC:
+        elif self.type == FileType.ZX_BASIC:
             if self.execute is not None:
                 str += f'{self.execute:6}'
-        elif type == FileType.ZX_CODE:
+        elif self.type == FileType.ZX_CODE:
             str += f' {self.start:6},{self.length}'
             if self.execute is not None:
                 str += f',{self.execute}'
@@ -102,7 +118,7 @@ class File:
 
         file = File()
         file.entry = data
-        file.type = data[0] & 0x1f
+        file.type = FileType(data[0] & 0x1f)
         file.hidden = True if data[0] & 0x80 else False
         file.protected = True if data[0] & 0x40 else False
         file.name_raw = data[1:1+10]
@@ -220,14 +236,14 @@ class File:
 
         # Limited support for updating length/start/execute.
         if self.type == FileType.ZX_BASIC:
-            data[218:218+2] = struct.pack('<H', 0xffff if self.execute is None else self.execute)
+            data[218:218+2] = b'\ff\xff' if self.execute is None else File.word_to_le(self.execute)
         elif self.type == FileType.ZX_CODE:
-            data[212:212+2] = struct.pack('<H', self.length & 0xffff)
-            data[214:214+2] = struct.pack('<H', self.start)
-            data[218:218+2] = struct.pack('<H', 0x0000 if self.execute is None else self.execute)
+            data[212:212+2] = File.word_to_le(self.length)
+            data[214:214+2] = File.word_to_le(self.start)
+            data[218:218+2] = File.word_to_le(self.execute)
         elif self.type == FileType.OPENTYPE:
-            data[210] = self.length >> 16
-            data[212:212+2] = struct.pack('<H', self.length & 0xffff)
+            data[210] = 0 if self.length is None else self.length >> 16
+            data[212:212+2] = File.word_to_le(self.length)
         elif self.type == FileType.BASIC:
             data[242:242+3] = File.line_to_triple(self.execute)
         elif self.type == FileType.CODE:
@@ -284,19 +300,19 @@ class File:
         return sector_map
 
     @staticmethod
-    def pack_time(time: datetime, *, bdos_format: bool = False) -> bytes:
+    def pack_time(time: Optional[datetime], *, bdos_format: bool = False) -> bytes:
         """Pack given date/time into 5 bytes"""
 
         if time is None:
             return b'\x00\x00\x00\x00\x00'
         elif bdos_format:
-            data = time.day, (time.month << 3), time.year - 1900, (time.hour << 3) | (time.minute & 7), ((time.minute & 0x38) << 2) | (time.seconds // 2)
+            data = time.day, (time.month << 3), time.year - 1900, (time.hour << 3) | (time.minute & 7), ((time.minute & 0x38) << 2) | (time.second // 2)
         else:
             data = time.day, time.month, time.year - 1900, time.hour, time.minute
         return bytes(data)
 
     @staticmethod
-    def unpack_time(data: bytes) -> datetime:
+    def unpack_time(data: bytes) -> Optional[datetime]:
         """Unpack 5-byte date/time into datetime"""
 
         if data[0] == 0xff:
@@ -317,10 +333,15 @@ class File:
     @staticmethod
     def le_word(data: bytes) -> int:
         """Unpack unsigned 16-bit value from 2 bytes (little endian)"""
-        return struct.unpack('<H', data)[0]
+        return int(struct.unpack('<H', data)[0])
 
     @staticmethod
-    def unpack_triple(data: bytes) -> Tuple:
+    def word_to_le(val: Optional[int]) -> bytes:
+        """Pack unsigned 16-bit value to 2 bytes (little endian)"""
+        return struct.pack('<H', 0 if val is None else (val & 0xffff))
+
+    @staticmethod
+    def unpack_triple(data: bytes) -> Tuple[int, int]:
         """Unpack 3-byte MGT value to 5-bit and 15-bit components"""
         return data[0] & 0x1f, (data[2] & 0x7f) * 256 + data[1]
 
@@ -337,30 +358,34 @@ class File:
         return pages * 16384 + remain
 
     @staticmethod
-    def triple_to_exec(data: bytes) -> int:
+    def triple_to_exec(data: bytes) -> Optional[int]:
         """Convert 3-byte value to execute address"""
         page, offset = File.unpack_triple(data)
         return None if data[0] == 0xff else page * 16384 + offset
 
     @staticmethod
-    def triple_to_line(data: bytes) -> int:
+    def triple_to_line(data: bytes) -> Optional[int]:
         """Convert 3-byte value BASIC auto-start line number"""
         return None if data[0] == 0xff else (data[2] * 256 + data[1])
 
     @staticmethod
-    def addr_to_triple(addr: int) -> bytes:
+    def addr_to_triple(addr: Optional[int]) -> bytes:
         """Convert start address to 3-byte value"""
+        if addr is None:
+            return b'\x00\x00\x00'
         page, addr = ((addr >> 14) - 1) & 0x1f, (addr & 0x3fff) + 0x8000
         return struct.pack('<BH', page, addr)
 
     @staticmethod
-    def len_to_triple(len: int) -> bytes:
+    def len_to_triple(len: Optional[int]) -> bytes:
         """Convert length to 3-byte page/offset value"""
+        if len is None:
+            return b'\x00\x00\x00'
         pages, remain = (len >> 14) & 0x1f, len & 0x3fff
         return struct.pack('<BH', pages, remain)
 
     @staticmethod
-    def exec_to_triple(exec: int) -> bytes:
+    def exec_to_triple(exec: Optional[int]) -> bytes:
         """Convert execute address to 3-byte value"""
         if exec is None:
             return b'\xff\xff\xff'
@@ -368,6 +393,6 @@ class File:
         return struct.pack('<BH', page, offset)
 
     @staticmethod
-    def line_to_triple(line: int) -> bytes:
+    def line_to_triple(line: Optional[int]) -> bytes:
         """Convert auto-start line number to 3-byte value"""
         return b'\xff\xff\xff' if line is None else struct.pack('<BH', 0, line)
