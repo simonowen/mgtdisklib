@@ -5,7 +5,7 @@ def read(filename):
     return open(os.path.join(os.path.dirname(__file__), filename), encoding='utf-8').read()
 
 setup(name='mgtdisklib',
-      version='0.5.1',
+      version='0.5.2',
       author='Simon Owen',
       author_email='simon@simonowen.com',
       description='Disk manipulation for SAM Coupé and MGT +D disks images',
