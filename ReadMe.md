@@ -7,6 +7,8 @@ NOTE: the library is currently a work in progress and the API is still subject t
 Homepage: https://github.com/simonowen/mgtdisklib  
 Module: https://pypi.org/project/mgtdisklib/
 
+[![CI](https://github.com/simonowen/mgtdisklib/actions/workflows/main.yml/badge.svg)](https://github.com/simonowen/mgtdisklib/actions/workflows/main.yml)
+
 ----
 
 ## Using the library
@@ -63,7 +65,7 @@ Represents a logical SAM disk plus all its contents.
         """Add CODE file from path"""
     def delete(self, pattern: str) -> int:
         """Delete files matching filename pattern"""
-    def bam(self) -> None:
+    def bam(self) -> bitarray:
         """Combined Bitmap Address Map for all files"""
     def dir(self, *, spt: int = 10) -> None:
         """Display directory listing"""
