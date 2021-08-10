@@ -8,12 +8,39 @@ from datetime import datetime
 from typing import Tuple, Optional
 from bitarray import bitarray   # python -m pip install bitarray
 
-FILE_TYPES = { 'NONE':0, 'ZX_BASIC':1, 'ZX_DATA':2, 'ZX_DATA_STR':3, 'ZX_CODE':4,
-    'ZX_SNP_48K':5, 'ZX_MDRV':6, 'ZX_SCREEN':7, 'SPECIAL':8, 'ZX_SNP_128K':9,
-    'OPENTYPE':10, 'ZX_EXECUTE':11, 'UNIDOS_DIR':12, 'UNIDOS_CREATE':13, 'BASIC':16,
-    'DATA':17, 'DATA_STR':18, 'CODE':19, 'SCREEN':20, 'DIR':21, 'DRIVER_APP':22,
-    'DRIVER_BOOT':23, 'EDOS_NOMEN':24, 'EDOS_SYSTEM':25, 'EDOS_OVERLAY':26,
-    'HDOS_DOS':28, 'HDOS_DIR':29, 'HDOS_DISK':30, 'HDOS_TEMP':31 }
+class FileType(IntEnum):
+    NONE = 0
+    ZX_BASIC = 1
+    ZX_DATA = 2
+    ZX_DATA_STR = 3
+    ZX_CODE = 4
+    ZX_SNP_48K = 5
+    ZX_MDRV = 6
+    ZX_SCREEN = 7
+    SPECIAL = 8
+    ZX_SNP_128K = 9
+    OPENTYPE = 10
+    ZX_EXECUTE = 11
+    UNIDOS_DIR = 12
+    UNIDOS_CREATE = 13
+    UNUSED_14 = 14
+    UNUSED_15 = 15
+    BASIC = 16
+    DATA = 17
+    DATA_STR = 18
+    CODE = 19
+    SCREEN = 20
+    DIR = 21
+    DRIVER_APP = 22
+    DRIVER_BOOT = 23
+    EDOS_NOMEN = 24
+    EDOS_SYSTEM = 25
+    EDOS_OVERLAY = 26
+    UNUSED_27 = 27
+    HDOS_DOS = 28
+    HDOS_DIR = 29
+    HDOS_DISK = 30
+    HDOS_TEMP = 31
 
 TYPE_NAMES = { 1:'ZX BASIC', 2:'ZX DATA ()', 3:'ZX DATA $()', 4:'ZX CODE',
     5:'ZX SNP 48K', 6:'ZX MDRV', 7:'ZX SCREEN$', 8:'SPECIAL', 9:'ZX SNP 128K',
@@ -21,8 +48,6 @@ TYPE_NAMES = { 1:'ZX BASIC', 2:'ZX DATA ()', 3:'ZX DATA $()', 4:'ZX CODE',
     17:'DATA ()', 18:'DATA $', 19:'CODE', 20:'SCREEN$', 21:'<DIR>', 22:'DRIVER APP',
     23:'DRIVER BOOT', 24:'EDOS NOMEN', 25:'EDOS SYSTEM', 26:'EDOS OVERLAY',
     28:'HDOS DOS', 29:'HDOS DIR', 30:'HDOS DISK', 31:'HDOS TEMP' }
-
-FileType = IntEnum('FileType', FILE_TYPES)
 
 class File:
     def __init__(self):

@@ -18,12 +18,13 @@ class Image:
         with open(path, 'rb') as f:
             data = bytearray(f.read())
             if data[:2] == b'\x1f\x8b':
-                with gzip.open(path, 'rb') as f:
-                    data = bytearray(f.read())
+                with gzip.open(path, 'rb') as f2:
+                    data = bytearray(f2.read())
                     compressed = True
             else:
                 compressed = False
 
+        image: Optional[Image] = None
         if len(data) == 819200 or len(data) == 737280:
             image = MGTImage()
             image.spt = len(data) // (80 * 2 * 512)
@@ -47,8 +48,8 @@ class Image:
             with gzip.open(path, 'wb') as f:
                 f.write(self.data)
         else:
-            with open(path, 'wb') as f:
-                f.write(self.data)
+            with open(path, 'wb') as f2:
+                f2.write(self.data)
 
     def read_sector(self, track: int, sector: int) -> bytes:
         """Read sector data for given sector location"""
