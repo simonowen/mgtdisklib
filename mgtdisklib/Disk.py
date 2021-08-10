@@ -65,24 +65,24 @@ class Disk:
     def save(self, path: str, *, compressed: bool = False, spt: int = 10) -> None:
         """Save disk content to disk image"""
         if spt <= 0:
-            raise ValueError("invalid sectors per track")
+            raise ValueError(f'invalid sectors per track ({spt})')
         image = self.to_image(spt=spt)
         image.save(path, compressed=compressed)
 
     def to_image(self, *, spt: int = 10) -> Image:
         """Generate MGT disk image from current contents"""
         if spt <= 0:
-            raise ValueError("invalid sectors per track")
+            raise ValueError(f'invalid sectors per track ({spt})')
         image = MGTImage(spt=spt)
         track, sector = self.dir_tracks, 1
         index = 0
 
         for file in self.files:
             if index >= self.dir_tracks * spt:
-                raise RuntimeError("too many files for directory")
+                raise RuntimeError(f'too many files (>= {self.dir_tracks * spt}) for directory')
             entry = file.to_dir(track, sector, spt=image.spt)
-            Disk.write_dir(image, index, entry)
             track, sector = Disk.write_data(image, file.type, track, sector, file.data)
+            Disk.write_dir(image, index, entry)
             index += 1
 
         return image
@@ -173,7 +173,11 @@ class Disk:
         for i in range(len(data) // chunk_size):
             offset = i * chunk_size
             chunk = data[offset:offset+chunk_size]
-            next_track, next_sector = Disk.next_sector(track, sector, image.spt)
+
+            try:
+                next_track, next_sector = Disk.next_sector(track, sector, image.spt)
+            except ValueError:
+                raise RuntimeError('data area is out of space')
 
             if chunk_size == 512:
                 pass
@@ -189,6 +193,9 @@ class Disk:
 
     @staticmethod
     def next_sector(track: int, sector: int, spt: int = 10) -> Tuple[int, int]:
+        """Determine next sector position after given sector"""
+        if track < 0 or (track & 0x7f) >= 80 or sector < 1 or sector > spt:
+            raise ValueError(f'invalid sector position (track {track} sector {sector})')
         sector += 1
         if sector > spt:
             sector = 1

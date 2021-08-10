@@ -160,7 +160,7 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(data, data2)
         self.assertEqual(image.read_sector(4, 10)[510:], bytes((5, 1)))
         Disk.write_data, image, 207, 10, bytes(510)
-        self.assertRaises(ValueError, Disk.write_data, image, FileType.CODE, 207, 10, bytes(2 * 510))
+        self.assertRaises(RuntimeError, Disk.write_data, image, FileType.CODE, 207, 10, bytes(2 * 510))
 
     def test_write_data_9spt(self):
         image = Image.open(f'{TESTDIR}/samdos2.mgt.gz')
@@ -171,7 +171,7 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(data, data2)
         self.assertEqual(image2.read_sector(4, 9)[510:], bytes((5, 1)))
         Disk.write_data, image2, 207, 9, bytes(510)
-        self.assertRaises(ValueError, Disk.write_data, image2, FileType.CODE, 207, 9, bytes(2 * 510))
+        self.assertRaises(RuntimeError, Disk.write_data, image2, FileType.CODE, 207, 9, bytes(2 * 510))
 
     def test_next_sector(self):
         self.assertEqual(Disk.next_sector(0, 1), (0, 2))
@@ -179,6 +179,10 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(Disk.next_sector(79, 10), (128, 1))
         self.assertEqual(Disk.next_sector(128, 10), (129, 1))
         self.assertEqual(Disk.next_sector(207, 10), (208, 1))   # detected later
+        self.assertRaises(ValueError, Disk.next_sector, 0, 0)
+        self.assertRaises(ValueError, Disk.next_sector, 0, 11)
+        self.assertRaises(ValueError, Disk.next_sector, 80, 1)
+        self.assertRaises(ValueError, Disk.next_sector, 208, 1)
 
     def test_next_sector_9spt(self):
         self.assertEqual(Disk.next_sector(0, 1, spt=9), (0, 2))
@@ -186,6 +190,9 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(Disk.next_sector(79, 9, spt=9), (128, 1))
         self.assertEqual(Disk.next_sector(128, 9, spt=9), (129, 1))
         self.assertEqual(Disk.next_sector(207, 9, spt=9), (208, 1))
+        self.assertRaises(ValueError, Disk.next_sector, 0, 10, spt=9)
+        self.assertRaises(ValueError, Disk.next_sector, 80, 1, spt=9)
+        self.assertRaises(ValueError, Disk.next_sector, 208, 1, spt=9)
 
 if __name__ == '__main__':
     unittest.main()
