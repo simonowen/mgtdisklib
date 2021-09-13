@@ -24,6 +24,10 @@ class Disk:
         self.files: List[File] = []
         self.compressed: bool = False
 
+    def __str__(self) -> str:
+        """String representation of Disk, as directory listing"""
+        return self.dir()
+
     @staticmethod
     def open(path: str):
         """Load disk from disk image file"""
@@ -103,12 +107,12 @@ class Disk:
         """Combined Bitmap Address Map for all files"""
         return functools.reduce(operator.or_, (file.sector_map for file in self.files))
 
-    def dir(self, *, spt: int = 10) -> None:
-        """Display directory listing"""
-        print(f'* {self.label or self.type.name}:\n')
+    def dir(self, *, spt: int = 10) -> str:
+        """Generate directory listing"""
+        str = f'* {self.label or self.type.name}:\n'
 
         for i, file in enumerate(self.files):
-            print(f'{i+1:3}  {file}')
+            str += f'{i+1:3}  {file}\n'
 
         total_sectors = (80 * 2 * spt * 512) // 512
         dir_sectors = self.dir_tracks * spt
@@ -116,7 +120,8 @@ class Disk:
         free_sectors = total_sectors - dir_sectors - used_sectors
 
         free_slots = self.dir_tracks * spt * 2 - len(self.files)
-        print(f"\n{len(self.files):2} files, {free_slots:2} free slots, {used_sectors/2:3}K used, {free_sectors/2:3}K free")
+        str += f"\n{len(self.files):2} files, {free_slots:2} free slots, {used_sectors/2:3}K used, {free_sectors/2:3}K free\n"
+        return str
 
     @staticmethod
     def dir_position(index: int, spt: int = 10) -> Tuple[int, int, int]:
