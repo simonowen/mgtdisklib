@@ -289,4 +289,4 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(dir[-1], ' 0 files, 72 free slots, 0.0K used, 702.0K free')
 
 if __name__ == '__main__':
-    unittest.main()
+    unittest.main() # pragma: no cover

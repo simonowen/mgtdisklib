@@ -1050,4 +1050,4 @@ class FileTests(unittest.TestCase):
         self.assertEqual(File.word_to_le(0x12345), b'\x45\x23')
 
 if __name__ == '__main__':
-    unittest.main()
+    unittest.main() # pragma: no cover

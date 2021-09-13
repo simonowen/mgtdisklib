@@ -28,6 +28,7 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install mypy
         if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; fi
+        if [ -f requirements_test.txt ]; then python -m pip install -r requirements_test.txt; fi
 
     - name: Test with unittest
       run: |
@@ -36,3 +37,8 @@ jobs:
     - name: Lint with mypy
       run: |
         python -m mypy --python-version "${{ matrix.python-version }}" mgtdisklib
+
+    - name: Code coverage of unit tests
+      run: |
+        coverage run -m unittest
+        coverage report -m

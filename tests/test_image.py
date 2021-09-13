@@ -188,4 +188,4 @@ class ImageTests(unittest.TestCase):
         self.assertRaises(ValueError, image.write_sector, 0, 1, bytes(513))
 
 if __name__ == '__main__':
-    unittest.main()
+    unittest.main() # pragma: no cover
