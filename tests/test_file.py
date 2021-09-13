@@ -41,6 +41,23 @@ class FileTests(unittest.TestCase):
     def test_construct(self):
         file = File()
         self.assertEqual(file.type, FileType.NONE)
+        self.assertEqual(file.data, bytearray())
+        self.assertEqual(file.entry, bytes(256))
+        self.assertFalse(file.hidden)
+        self.assertFalse(file.protected)
+        self.assertEqual(file.name_raw, bytes())
+        self.assertEqual(file.name, '')
+        self.assertIsNone(file.start_track)
+        self.assertIsNone(file.start_sector)
+        self.assertEqual(file.sector_map, bitarray(endian='little'))
+        self.assertEqual(file.sectors, 0)
+        self.assertIsNone(file.start)
+        self.assertIsNone(file.length)
+        self.assertIsNone(file.execute)
+        self.assertIsNone(file.time)
+        self.assertIsNone(file.dir)
+        self.assertIsNone(file.data_var)
+        self.assertIsNone(file.screen_mode)
 
     def test_from_code_path(self):
         file = File.from_code_path(f'{TESTDIR}/samdos2')

@@ -58,7 +58,7 @@ class File:
     def __init__(self):
         self.type: FileType = FileType.NONE
         self.data = bytearray()
-        self.entry: bytes = bytes()
+        self.entry: bytes = bytes(256)
         self.hidden: bool = False
         self.protected: bool = False
         self.name_raw: bytes = bytes()
