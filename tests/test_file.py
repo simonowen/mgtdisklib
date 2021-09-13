@@ -506,8 +506,25 @@ class FileTests(unittest.TestCase):
         self.assertFalse(file.is_bootable())
 
     def test_type_special(self):
-        # TODO?
-        pass
+        file = Disk.open(f'{TESTDIR}/emptycpm.mgt.gz').files[0]
+        self.assertEqual(str(file), 'CP/M DISK  1440  SPECIAL')
+        self.assertEqual(file.type, FileType.SPECIAL)
+        self.assertFalse(file.hidden)
+        self.assertFalse(file.protected)
+        self.assertEqual(file.name, 'CP/M DISK')
+        self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
+        self.assertEqual(file.sectors, 1440)
+        self.assertEqual(file.length, 737280)
+        self.assertEqual(len(file.data), file.sectors * File.data_bytes_per_sector(file.type))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.data, b'\xe5' * file.length)
+        self.assertIsNone(file.data_var)
+        self.assertIsNone(file.start)
+        self.assertIsNone(file.execute)
+        self.assertIsNone(file.dir)
+        self.assertIsNone(file.time)
+        self.assertIsNone(file.screen_mode)
+        self.assertFalse(file.is_bootable())
 
     def test_type_zx_snap_128k(self):
         file = Disk.open(f'{TESTDIR}/zx_snap_128k.mgt.gz').files[0]

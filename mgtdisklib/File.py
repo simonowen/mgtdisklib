@@ -197,6 +197,8 @@ class File:
         elif file.type == FileType.ZX_SCREEN:
             file.start = zx_start
             file.length = zx_length
+        elif file.type == FileType.SPECIAL:
+            file.length = file.sectors * 512
         elif file.type == FileType.ZX_SNP_128K:
             file.length = 0x20001
         elif file.type == FileType.OPENTYPE:

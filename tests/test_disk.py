@@ -1,4 +1,4 @@
-import os, unittest
+import os, random, unittest
 from mgtdisklib import Disk, DiskType, FileType, Image, MGTImage
 
 TESTDIR=os.path.join(os.path.split(__file__)[0], 'data')
@@ -172,6 +172,11 @@ class DiskTests(unittest.TestCase):
         data = Disk.read_data(image, FileType.CODE, 20, 207, 10)
         self.assertEqual(len(data), 510)
 
+    def test_read_data_contig(self):
+        image = Image.open(f'{TESTDIR}/emptycpm.mgt.gz')
+        data = Disk.read_data(image, FileType.SPECIAL, 80*2*9, 4, 1)
+        self.assertEqual(len(data), 80*2*9*512)
+
     def test_write_data(self):
         image = Image.open(f'{TESTDIR}/samdos2.mgt.gz')
         data = Disk.read_data(image, FileType.CODE, 20, 4, 1)
@@ -181,6 +186,13 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(image.read_sector(4, 10)[510:], bytes((5, 1)))
         Disk.write_data, image, 207, 10, bytes(510)
         self.assertRaises(RuntimeError, Disk.write_data, image, FileType.CODE, 207, 10, bytes(2 * 510))
+
+    def test_write_data_contig(self):
+        image = Image()
+        data = random.randbytes(80*2*9*512)
+        Disk.write_data(image, FileType.SPECIAL, 4, 1, data)
+        data2 = b''.join([image.read_sector((t % 80) + (128 if t>=80 else 0), s) for t in range(4,4+144) for s in range(1,11,1)])
+        self.assertEqual(data, data2)
 
     def test_write_data_9spt(self):
         image = Image.open(f'{TESTDIR}/samdos2.mgt.gz')
