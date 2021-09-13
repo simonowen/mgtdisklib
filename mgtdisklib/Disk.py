@@ -82,8 +82,8 @@ class Disk:
         index = 0
 
         for file in self.files:
-            if index >= self.dir_tracks * spt:
-                raise RuntimeError(f'too many files (>= {self.dir_tracks * spt}) for directory')
+            if index >= self.dir_tracks * spt * 2:
+                raise RuntimeError(f'too many files (>= {self.dir_tracks * spt * 2}) for directory')
             entry = file.to_dir(track, sector, spt=image.spt)
             track, sector = Disk.write_data(image, file.type, track, sector, file.data)
             Disk.write_dir(image, index, entry)
