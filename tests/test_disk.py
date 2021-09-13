@@ -224,7 +224,7 @@ class DiskTests(unittest.TestCase):
 
     def test_write_data_contig(self):
         image = Image()
-        data = random.randbytes(80*2*9*512)
+        data = bytes([random.randrange(0, 0x100) for _ in range(80*2*9*512)])
         Disk.write_data(image, FileType.SPECIAL, 4, 1, data)
         data2 = b''.join([image.read_sector((t % 80) + (128 if t>=80 else 0), s) for t in range(4,4+144) for s in range(1,11,1)])
         self.assertEqual(data, data2)
