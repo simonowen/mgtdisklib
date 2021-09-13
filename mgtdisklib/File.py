@@ -268,7 +268,7 @@ class File:
 
         # Limited support for updating length/start/execute.
         if self.type == FileType.ZX_BASIC:
-            data[218:218+2] = b'\ff\xff' if self.execute is None else File.word_to_le(self.execute)
+            data[218:218+2] = b'\xff\xff' if self.execute is None else File.word_to_le(self.execute)
         elif self.type == FileType.ZX_CODE:
             data[212:212+2] = File.word_to_le(self.length)
             data[214:214+2] = File.word_to_le(self.start)
