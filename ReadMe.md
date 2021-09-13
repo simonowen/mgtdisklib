@@ -67,8 +67,8 @@ Represents a logical SAM disk plus all its contents.
         """Delete files matching filename pattern"""
     def bam(self) -> bitarray:
         """Combined Bitmap Address Map for all files"""
-    def dir(self, *, spt: int = 10) -> None:
-        """Display directory listing"""
+    def dir(self, *, spt: int = 10) -> str:
+        """Return directory listing"""
 ```
 
 ### Instance Variables
@@ -120,6 +120,14 @@ FileType.HDOS_DISK
 FileType.HDOS_TEMP
 ```
 
+`TimeFormat` is one of the following values:
+
+```python
+TimeFormat.MASTERDOS    # Format used by MasterDOS.
+TimeFormat.BDOS         # Format used by most BDOS and AL-BDOS versions.
+TimeFormat.BDOS17       # Packed format for used by BDOS 1.7 or later.
+```
+
 ### Class Functions
 ```python
     def from_code_path(path: str, *, filename: str = None, start: int = 0x8000, execute: int = None) -> File:
@@ -136,7 +144,7 @@ FileType.HDOS_TEMP
 ```python
     def save(self, path: str) -> None:
         """Export directory entry and file content for later"""
-    def to_dir(self, start_track: int = 4, start_sector: int = 1, *, spt: int = 10) -> bytes:
+    def to_dir(self, start_track: int = 4, start_sector: int = 1, *, spt: int = 10, timefmt: TimeFormat = TimeFormat.BDOS) -> bytes:
         """Create directory entry from current file data"""
     def is_bootable(self) -> bool:
         """Check whether the file would be bootable in the first directory slot"""
