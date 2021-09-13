@@ -1,8 +1,11 @@
-import os, random, unittest
+import os
+import random
+import unittest
 from mgtdisklib import Disk, DiskType, FileType, Image, MGTImage
 
-TESTDIR=os.path.join(os.path.split(__file__)[0], 'data')
-TESTOUTPUTFILE=f'{TESTDIR}/__output__.mgt'
+TESTDIR = os.path.join(os.path.split(__file__)[0], 'data')
+TESTOUTPUTFILE = f'{TESTDIR}/__output__.mgt'
+
 
 class DiskTests(unittest.TestCase):
     def test_construct(self):
@@ -226,7 +229,8 @@ class DiskTests(unittest.TestCase):
         image = Image()
         data = bytes([random.randrange(0, 0x100) for _ in range(80*2*9*512)])
         Disk.write_data(image, FileType.SPECIAL, 4, 1, data)
-        data2 = b''.join([image.read_sector((t % 80) + (128 if t>=80 else 0), s) for t in range(4,4+144) for s in range(1,11,1)])
+        data2 = b''.join([image.read_sector((t % 80) + (128 if t >= 80 else 0), s)
+                         for t in range(4, 4+144) for s in range(1, 11, 1)])
         self.assertEqual(data, data2)
 
     def test_write_data_9spt(self):
@@ -288,5 +292,6 @@ class DiskTests(unittest.TestCase):
         dir = disk.dir(spt=9).splitlines()
         self.assertEqual(dir[-1], ' 0 files, 72 free slots, 0.0K used, 702.0K free')
 
+
 if __name__ == '__main__':
-    unittest.main() # pragma: no cover
+    unittest.main()  # pragma: no cover

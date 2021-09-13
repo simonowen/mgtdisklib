@@ -2,8 +2,10 @@
 #
 # Part of https://github.com/simonowen/mgtdisklib
 
-import os, gzip
+import os
+import gzip
 from typing import Optional
+
 
 class Image:
     def __init__(self, *, spt: int = 10) -> None:
@@ -55,7 +57,6 @@ class Image:
         """Read sector data for given sector location"""
 
         offset = self.sector_offset(track, sector)
-        #print(f'Reading track {track} sector {sector} @{offset}')
         return bytes(self.data[offset:offset+512])
 
     def write_sector(self, track: int, sector: int, data: bytes) -> None:
@@ -65,7 +66,6 @@ class Image:
             raise ValueError('sector data should be 512 bytes')
 
         offset = self.sector_offset(track, sector)
-        #print(f'Writing track {track} sector {sector} @{offset}')
         self.data[offset:offset+512] = data
 
     def sector_offset(self, track: int, sector: int) -> int:
@@ -76,8 +76,10 @@ class Image:
 
         return ((track & 0x7f) * self.spt * 2 + (track >> 7) * self.spt + (sector - 1)) * 512
 
+
 class MGTImage(Image):
     pass
+
 
 class SADImage(Image):
     def sector_offset(self, track: int, sector: int) -> int:
@@ -87,6 +89,7 @@ class SADImage(Image):
             raise ValueError(f'invalid sector location track {track} sector {sector}')
 
         return 22 + (((track >> 7) * 80 + (track & 0x7f)) * self.spt + (sector - 1)) * 512
+
 
 class EDSKImage(Image):
     def sector_offset(self, track: int, sector: int) -> int:

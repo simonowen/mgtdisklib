@@ -1,10 +1,12 @@
-import os, unittest
+import os
+import unittest
 from datetime import datetime
 from bitarray import bitarray
 from mgtdisklib import Disk, File, FileType, TimeFormat
 
-TESTDIR=os.path.join(os.path.split(__file__)[0], 'data')
-TESTOUTPUTFILE=f'{TESTDIR}/__output__.file'
+TESTDIR = os.path.join(os.path.split(__file__)[0], 'data')
+TESTOUTPUTFILE = f'{TESTDIR}/__output__.file'
+
 
 class FileTests(unittest.TestCase):
     def test_type_values(self):
@@ -265,13 +267,13 @@ class FileTests(unittest.TestCase):
         self.assertEqual(File.unpack_triple(b'\xff\xff\xff'), (0x1f, 0x7fff))
 
     def test_triple_to_addr(self):
-        self.assertEqual(File.triple_to_addr(b'\x5f\x00\x80'), 0x80000) # MasterDOS
+        self.assertEqual(File.triple_to_addr(b'\x5f\x00\x80'), 0x80000)  # MasterDOS
         self.assertEqual(File.triple_to_addr(b'\x60\x00\x80'), 0x4000)
         self.assertEqual(File.triple_to_addr(b'\x61\x00\x80'), 0x8000)
         self.assertEqual(File.triple_to_addr(b'\x7d\x00\x80'), 0x78000)
         self.assertEqual(File.triple_to_addr(b'\x7e\x00\x80'), 0x7c000)
-        self.assertEqual(File.triple_to_addr(b'\x7f\x00\x80'), 0x80000) # MasterDOS
-        self.assertEqual(File.triple_to_addr(b'\x7f\xff\xbf'), 0x83fff) # MasterDOS
+        self.assertEqual(File.triple_to_addr(b'\x7f\x00\x80'), 0x80000)  # MasterDOS
+        self.assertEqual(File.triple_to_addr(b'\x7f\xff\xbf'), 0x83fff)  # MasterDOS
 
     def test_triple_to_len(self):
         self.assertEqual(File.triple_to_len(b'\x00\x00\x00'), 0)
@@ -306,13 +308,13 @@ class FileTests(unittest.TestCase):
 
     def test_addr_to_triple(self):
         self.assertEqual(File.addr_to_triple(None), b'\x00\x00\x00')
-        self.assertEqual(File.addr_to_triple(0x80000), b'\x1f\x00\x80') # MasterDOS
+        self.assertEqual(File.addr_to_triple(0x80000), b'\x1f\x00\x80')  # MasterDOS
         self.assertEqual(File.addr_to_triple(0x4000), b'\x00\x00\x80')
         self.assertEqual(File.addr_to_triple(0x8000), b'\x01\x00\x80')
         self.assertEqual(File.addr_to_triple(0x78000), b'\x1d\x00\x80')
         self.assertEqual(File.addr_to_triple(0x7c000), b'\x1e\x00\x80')
-        self.assertEqual(File.addr_to_triple(0x80000), b'\x1f\x00\x80') # MasterDOS
-        self.assertEqual(File.addr_to_triple(0x83fff), b'\x1f\xff\xbf') # MasterDOS
+        self.assertEqual(File.addr_to_triple(0x80000), b'\x1f\x00\x80')  # MasterDOS
+        self.assertEqual(File.addr_to_triple(0x83fff), b'\x1f\xff\xbf')  # MasterDOS
 
     def test_len_to_triple(self):
         self.assertEqual(File.len_to_triple(None), b'\x00\x00\x00')
@@ -632,7 +634,7 @@ class FileTests(unittest.TestCase):
         self.assertEqual(len(file.data), file.sectors * File.data_bytes_per_sector(file.type))
         self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
         self.assertEqual(file.data[0], 16)
-        self.assertEqual([file.data[i*0x4000] for i in range(1,8)], list(range(16,16+7)))
+        self.assertEqual([file.data[i*0x4000] for i in range(1, 8)], list(range(16, 16+7)))
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.start)
         self.assertIsNone(file.execute)
@@ -1049,5 +1051,6 @@ class FileTests(unittest.TestCase):
         self.assertEqual(File.word_to_le(0xffff), b'\xff\xff')
         self.assertEqual(File.word_to_le(0x12345), b'\x45\x23')
 
+
 if __name__ == '__main__':
-    unittest.main() # pragma: no cover
+    unittest.main()  # pragma: no cover

@@ -2,11 +2,13 @@
 #
 # Part of https://github.com/simonowen/mgtdisklib
 
-import os, struct
+import os
+import struct
 from enum import Enum, IntEnum
 from datetime import datetime
 from typing import Tuple, Optional
 from bitarray import bitarray
+
 
 class FileType(IntEnum):
     NONE = 0
@@ -42,17 +44,22 @@ class FileType(IntEnum):
     HDOS_DISK = 30
     HDOS_TEMP = 31
 
-TYPE_NAMES = { 1:'ZX BASIC', 2:'ZX DATA ()', 3:'ZX DATA $()', 4:'ZX CODE',
-    5:'ZX SNP 48K', 6:'ZX MDRV', 7:'ZX SCREEN$', 8:'SPECIAL', 9:'ZX SNP 128K',
-    10:'OPENTYPE', 11:'ZX EXECUTE', 12:'UNIDOS DIR', 13:'UNIDOS CREATE', 16:'BASIC',
-    17:'DATA ()', 18:'DATA $', 19:'CODE', 20:'SCREEN$', 21:'<DIR>', 22:'DRIVER APP',
-    23:'DRIVER BOOT', 24:'EDOS NOMEN', 25:'EDOS SYSTEM', 26:'EDOS OVERLAY',
-    28:'HDOS DOS', 29:'HDOS DIR', 30:'HDOS DISK', 31:'HDOS TEMP' }
+
+TYPE_NAMES = {
+    1: 'ZX BASIC', 2: 'ZX DATA ()', 3: 'ZX DATA $()', 4: 'ZX CODE', 5: 'ZX SNP 48K',
+    6: 'ZX MDRV', 7: 'ZX SCREEN$', 8: 'SPECIAL', 9: 'ZX SNP 128K', 10: 'OPENTYPE',
+    11: 'ZX EXECUTE', 12: 'UNIDOS DIR', 13: 'UNIDOS CREATE', 16: 'BASIC', 17: 'DATA ()',
+    18: 'DATA $', 19: 'CODE', 20: 'SCREEN$', 21: '<DIR>', 22: 'DRIVER APP',
+    23: 'DRIVER BOOT', 24: 'EDOS NOMEN', 25: 'EDOS SYSTEM', 26: 'EDOS OVERLAY',
+    28: 'HDOS DOS', 29: 'HDOS DIR', 30: 'HDOS DISK', 31: 'HDOS TEMP'
+}
+
 
 class TimeFormat(Enum):
     MASTERDOS = 0
     BDOS = 1
     BDOS17 = 2
+
 
 class File:
     def __init__(self):
@@ -157,7 +164,7 @@ class File:
         file.start_sector = data[14]
         file.sector_map = bitarray(endian='little')
         file.sector_map.frombytes(data[15:15+195])
-        file.sectors = file.sector_map.count(1) # trust bitmap over stored sector count [see MNEMOdemo1]
+        file.sectors = file.sector_map.count(1)  # trust bitmap over stored sector count [see MNEMOdemo1]
         file.time = File.unpack_time(data[245:245+5]) if File.is_sam_file_type(file.type) else None
 
         file.start = None
@@ -261,7 +268,7 @@ class File:
 
         data[0] = int(self.type) | (0x80 if self.hidden else 0) | (0x40 if self.protected else 0)
         data[1:1+10] = f'{self.name:10}'.encode('ascii', errors='replace')
-        data[11:11+2] = struct.pack('>H', self.sectors) # big endian
+        data[11:11+2] = struct.pack('>H', self.sectors)  # big endian
         data[13] = start_track
         data[14] = start_sector
         data[15:15+195] = sector_map.tobytes()
@@ -341,7 +348,8 @@ class File:
         elif format is TimeFormat.BDOS:
             data = time.day, time.month, time.year - 1900, time.hour, time.minute
         elif format is TimeFormat.BDOS17:
-            data = time.day, 0x80 | (time.month << 3), time.year - 1900, (time.hour << 3) | (time.minute & 7), ((time.minute & 0x38) << 2) | (time.second >> 1)
+            data = time.day, 0x80 | (time.month << 3), time.year - 1900, \
+                    (time.hour << 3) | (time.minute & 7), ((time.minute & 0x38) << 2) | (time.second >> 1)
         return bytes(data)
 
     @staticmethod

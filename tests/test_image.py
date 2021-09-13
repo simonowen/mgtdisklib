@@ -1,8 +1,10 @@
-import os, unittest
+import os
+import unittest
 from mgtdisklib import Image, MGTImage, SADImage
 
-TESTDIR=os.path.join(os.path.split(__file__)[0], 'data')
-TESTOUTPUTFILE=f'{TESTDIR}/__output__.mgt'
+TESTDIR = os.path.join(os.path.split(__file__)[0], 'data')
+TESTOUTPUTFILE = f'{TESTDIR}/__output__.mgt'
+
 
 class ImageTests(unittest.TestCase):
     def test_construct_image(self):
@@ -187,5 +189,6 @@ class ImageTests(unittest.TestCase):
         self.assertRaises(ValueError, image.write_sector, 0, 1, bytes(511))
         self.assertRaises(ValueError, image.write_sector, 0, 1, bytes(513))
 
+
 if __name__ == '__main__':
-    unittest.main() # pragma: no cover
+    unittest.main()  # pragma: no cover

@@ -36,9 +36,16 @@ jobs:
 
     - name: Lint with mypy
       run: |
+        python -m mypy --version
         python -m mypy --python-version "${{ matrix.python-version }}" mgtdisklib
+
+    - name: Link with flake8
+      run: |
+        flake8 --version
+        flake8 .
 
     - name: Code coverage of unit tests
       run: |
+        coverage --version
         coverage run -m unittest
         coverage report -m

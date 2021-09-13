@@ -2,7 +2,10 @@
 #
 # Part of https://github.com/simonowen/mgtdisklib
 
-import struct, fnmatch, operator, functools
+import struct
+import fnmatch
+import operator
+import functools
 from enum import Enum
 from typing import List, Tuple, Optional
 from bitarray import bitarray
@@ -10,10 +13,12 @@ from bitarray import bitarray
 from .Image import Image, MGTImage
 from .File import File, FileType, TimeFormat
 
+
 class DiskType(Enum):
     SAMDOS = 1
     MASTERDOS = 2
     BDOS = 3
+
 
 class Disk:
     def __init__(self) -> None:
@@ -49,7 +54,7 @@ class Disk:
             disk.type = DiskType.MASTERDOS
             disk.dir_tracks = max(4, min(4 + entry0[255], 39))
             if entry0[210] != ord('*'):
-                 label_raw = entry0[210:210+10]
+                label_raw = entry0[210:210+10]
             disk.serial = struct.unpack('<H', entry0[252:252+2])[0]
 
         if label_raw:
@@ -119,9 +124,12 @@ class Disk:
         dir_sectors = self.dir_tracks * spt
         used_sectors = sum(file.sectors for file in self.files)
         free_sectors = total_sectors - dir_sectors - used_sectors
-
         free_slots = self.dir_tracks * spt * 2 - len(self.files)
-        str += f"\n{len(self.files):2} files, {free_slots:2} free slots, {used_sectors/2:3}K used, {free_sectors/2:3}K free\n"
+
+        str += f'\n{len(self.files):2} files'
+        str += f', {free_slots:2} free slots'
+        str += f', {used_sectors/2:3}K used'
+        str += f', {free_sectors/2:3}K free\n'
         return str
 
     @staticmethod
@@ -167,8 +175,9 @@ class Disk:
                     chunk = image.read_sector(track, sector)
                     data += chunk[:-2]
                     track, sector = chunk[-2:]
-        except Exception as e:
+        except ValueError:
             pass
+
         return data
 
     @staticmethod
