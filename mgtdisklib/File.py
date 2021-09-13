@@ -428,4 +428,6 @@ class File:
     @staticmethod
     def line_to_triple(line: Optional[int]) -> bytes:
         """Convert auto-start line number to 3-byte value"""
+        if line and (line < 0 or line >= 0xff00):
+            raise ValueError('line should be >=0 and < 65280')
         return b'\xff\xff\xff' if line is None else struct.pack('<BH', 0, line)

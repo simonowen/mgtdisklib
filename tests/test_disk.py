@@ -57,6 +57,7 @@ class DiskTests(unittest.TestCase):
         image = Image.open(TESTOUTPUTFILE)
         self.assertEqual(os.path.getsize(TESTOUTPUTFILE), 819200)
         self.assertEqual(len(image.data), 819200)
+        self.assertRaises(ValueError, Disk.save, disk, TESTOUTPUTFILE, spt=0)
         os.remove(TESTOUTPUTFILE)
 
     def test_save_9spt(self):
@@ -71,6 +72,7 @@ class DiskTests(unittest.TestCase):
         disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
         image = disk.to_image()
         disk2 = Disk.from_image(image)
+        self.assertRaises(ValueError, Disk.to_image, disk, spt=0)
 
         self.assertEqual(len(image.data), 819200)
         self.assertEqual(disk.type, disk2.type)
@@ -94,6 +96,36 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(disk.compressed, disk2.compressed)
         self.assertEqual(len(disk.files), len(disk2.files))
         self.assertEqual(disk.files[0].data, disk2.files[0].data)
+
+    def test_to_image_file_limit(self):
+        disk = Disk.open(f'{TESTDIR}/basic_auto.mgt.gz')
+        file = disk.files[0]
+        disk.files = [file for i in range(80)]
+        disk.to_image()
+        disk.files = [file for i in range(81)]
+        self.assertRaises(RuntimeError, Disk.to_image, disk)
+
+    def test_to_image_file_limit_9spt(self):
+        disk = Disk.open(f'{TESTDIR}/basic_auto.mgt.gz')
+        file = disk.files[0]
+        disk.files = [file for i in range(72)]
+        disk.to_image(spt=9)
+        disk.files = [file for i in range(73)]
+        self.assertRaises(RuntimeError, Disk.to_image, disk, spt=9)
+
+    def test_to_image_data_limit(self):
+        disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
+        disk.files[0].data = bytes((76 + 80) * 10 * 510)
+        disk.to_image()
+        disk.files[0].data += bytes(510)
+        self.assertRaises(RuntimeError, Disk.to_image, disk)
+
+    def test_to_image_data_limit_9spt(self):
+        disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
+        disk.files[0].data = bytes((76 + 80) * 9 * 510)
+        disk.to_image(spt=9)
+        disk.files[0].data += bytes(510)
+        self.assertRaises(RuntimeError, Disk.to_image, disk, spt=9)
 
     def test_add_code_file(self):
         disk = Disk()
@@ -164,6 +196,9 @@ class DiskTests(unittest.TestCase):
         Disk.write_dir(image, 1, data)
         self.assertEqual(Disk.read_dir(image, 1), data)
         self.assertRaises(IndexError, Disk.write_dir, image, -1, data)
+        self.assertRaises(ValueError, Disk.write_dir, image, 0, bytes(0))
+        self.assertRaises(ValueError, Disk.write_dir, image, 0, bytes(255))
+        self.assertRaises(ValueError, Disk.write_dir, image, 0, bytes(257))
 
     def test_read_data(self):
         image = Image.open(f'{TESTDIR}/samdos2.mgt.gz')
@@ -225,6 +260,33 @@ class DiskTests(unittest.TestCase):
         self.assertRaises(ValueError, Disk.next_sector, 0, 10, spt=9)
         self.assertRaises(ValueError, Disk.next_sector, 80, 1, spt=9)
         self.assertRaises(ValueError, Disk.next_sector, 208, 1, spt=9)
+
+    def test_str(self):
+        disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
+        dir = str(disk).splitlines()
+        self.assertEqual(dir[0], '* SAMDOS:')
+        self.assertEqual(dir[-1], ' 1 files, 79 free slots, 10.0K used, 770.0K free')
+
+        disk = Disk.open(f'{TESTDIR}/masterdos_label.mgt.gz')
+        dir = str(disk).splitlines()
+        self.assertEqual(dir[0], '* ABCDEFGHIJ:')
+
+        disk = Disk.open(f'{TESTDIR}/masterdos_no_label.mgt.gz')
+        dir = str(disk).splitlines()
+        self.assertEqual(dir[0], '* MASTERDOS:')
+
+        disk = Disk.open(f'{TESTDIR}/bdos_label.mgt.gz')
+        dir = str(disk).splitlines()
+        self.assertEqual(dir[0], '* ABCDEFGHIJKLMNOP:')
+
+    def test_dir(self):
+        disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
+        dir = disk.dir().splitlines()
+        self.assertEqual(len(dir), 4)
+
+        disk = Disk.open(f'{TESTDIR}/image9.mgt')
+        dir = disk.dir(spt=9).splitlines()
+        self.assertEqual(dir[-1], ' 0 files, 72 free slots, 0.0K used, 702.0K free')
 
 if __name__ == '__main__':
     unittest.main()

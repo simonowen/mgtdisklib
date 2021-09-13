@@ -190,6 +190,70 @@ class FileTests(unittest.TestCase):
 
         self.assertEqual(data, data_golden)
 
+    def test_to_dir(self):
+        file = File()
+        self.assertEqual(File.to_dir(file), bytes(256))
+
+    def test_to_dir_zx_basic(self):
+        file = File()
+        file.type = FileType.ZX_BASIC
+        file.execute = None
+        dir = file.to_dir()
+        self.assertEqual(dir[218:218+2], File.word_to_le(0xffff))
+        file.execute = 0x1234
+        dir = file.to_dir()
+        self.assertEqual(dir[218:218+2], File.word_to_le(file.execute))
+
+    def test_to_dir_zx_code(self):
+        file = File()
+        file.type = FileType.ZX_CODE
+        file.length = 0x1234
+        file.start = 0x5678
+        file.execute = 0x9abc
+        dir = file.to_dir()
+        self.assertEqual(dir[212:212+2], File.word_to_le(file.length))
+        self.assertEqual(dir[214:214+2], File.word_to_le(file.start))
+        self.assertEqual(dir[218:218+2], File.word_to_le(file.execute))
+        file.execute = None
+        dir = file.to_dir()
+        self.assertEqual(dir[218:218+2], File.word_to_le(0x0000))
+
+    def test_to_dir_opentype(self):
+        file = File()
+        file.type = FileType.OPENTYPE
+        file.length = None
+        dir = file.to_dir()
+        self.assertEqual(dir[210], 0x00)
+        self.assertEqual(dir[212:212+2], File.word_to_le(0x0000))
+        file.length = 0x123456
+        dir = file.to_dir()
+        self.assertEqual(dir[210], file.length >> 16)
+        self.assertEqual(dir[212:212+2], File.word_to_le(file.length & 0xffff))
+
+    def test_to_dir_basic(self):
+        file = File()
+        file.type = FileType.BASIC
+        file.execute = None
+        dir = file.to_dir()
+        self.assertEqual(dir[242:242+3], File.line_to_triple(file.execute))
+        file.execute = 0xfeff
+        dir = file.to_dir()
+        self.assertEqual(dir[242:242+3], File.line_to_triple(file.execute))
+
+    def test_to_dir_code(self):
+        file = File()
+        file.type = FileType.CODE
+        file.start = 0x123456
+        file.length = 0x234567
+        file.execute = None
+        dir = file.to_dir()
+        self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
+        self.assertEqual(dir[239:239+3], File.len_to_triple(file.length))
+        self.assertEqual(dir[242:242+3], File.exec_to_triple(file.execute))
+        file.execute = 0x12345
+        dir = file.to_dir()
+        self.assertEqual(dir[242:242+3], File.exec_to_triple(file.execute))
+
     def test_unpack_triple(self):
         self.assertEqual(File.unpack_triple(b'\x00\x00\x00'), (0x00, 0x0000))
         self.assertEqual(File.unpack_triple(b'\x00\x00\xff'), (0x00, 0x7f00))
@@ -241,6 +305,7 @@ class FileTests(unittest.TestCase):
         self.assertEqual(File.triple_to_line(b'\x80\xff\xff'), 0xffff)
 
     def test_addr_to_triple(self):
+        self.assertEqual(File.addr_to_triple(None), b'\x00\x00\x00')
         self.assertEqual(File.addr_to_triple(0x80000), b'\x1f\x00\x80') # MasterDOS
         self.assertEqual(File.addr_to_triple(0x4000), b'\x00\x00\x80')
         self.assertEqual(File.addr_to_triple(0x8000), b'\x01\x00\x80')
@@ -250,6 +315,7 @@ class FileTests(unittest.TestCase):
         self.assertEqual(File.addr_to_triple(0x83fff), b'\x1f\xff\xbf') # MasterDOS
 
     def test_len_to_triple(self):
+        self.assertEqual(File.len_to_triple(None), b'\x00\x00\x00')
         self.assertEqual(File.len_to_triple(0), b'\x00\x00\x00')
         self.assertEqual(File.len_to_triple(0x7f00), b'\x01\x00\x3f')
         self.assertEqual(File.len_to_triple(0x00ff), b'\x00\xff\x00')
@@ -270,10 +336,11 @@ class FileTests(unittest.TestCase):
 
     def test_line_to_triple(self):
         self.assertEqual(File.line_to_triple(0x0000), b'\x00\x00\x00')
-        self.assertEqual(File.line_to_triple(0xff00), b'\x00\x00\xff')
         self.assertEqual(File.line_to_triple(0x00ff), b'\x00\xff\x00')
-        self.assertEqual(File.line_to_triple(0xffff), b'\x00\xff\xff')
+        self.assertEqual(File.line_to_triple(0xfeff), b'\x00\xff\xfe')
         self.assertEqual(File.line_to_triple(None), b'\xff\xff\xff')
+        self.assertRaises(ValueError, File.line_to_triple, -1)
+        self.assertRaises(ValueError, File.line_to_triple, 0xff00)
 
     def test_is_contig_data_type(self):
         self.assertFalse(File.is_contig_data_type(FileType.NONE))
@@ -339,6 +406,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_zx_basic_vars(self):
         file = Disk.open(f'{TESTDIR}/zx_basic_vars.mgt.gz').files[0]
+        self.assertEqual(str(file), 'basic_vars    1  ZX BASIC')
         self.assertEqual(file.type, FileType.ZX_BASIC)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -359,6 +427,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_zx_basic_auto(self):
         file = Disk.open(f'{TESTDIR}/zx_basic_auto.mgt.gz').files[0]
+        self.assertEqual(str(file), 'basic_auto    1  ZX BASIC  1234')
         self.assertEqual(file.type, FileType.ZX_BASIC)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -379,6 +448,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_zx_data(self):
         file = Disk.open(f'{TESTDIR}/zx_data.mgt.gz').files[0]
+        self.assertEqual(str(file), 'data_x_10     1  ZX DATA () [x]')
         self.assertEqual(file.type, FileType.ZX_DATA)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -399,6 +469,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_zx_data_str1(self):
         file = Disk.open(f'{TESTDIR}/zx_data_str1.mgt.gz').files[0]
+        self.assertEqual(str(file), 'x$_5          1  ZX DATA $() [x$]')
         self.assertEqual(file.type, FileType.ZX_DATA_STR)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -419,6 +490,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_zx_data_str2(self):
         file = Disk.open(f'{TESTDIR}/zx_data_str2.mgt.gz').files[0]
+        self.assertEqual(str(file), 'x$_5,10       1  ZX DATA $() [x$]')
         self.assertEqual(file.type, FileType.ZX_DATA_STR)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -439,6 +511,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_zx_code(self):
         file = Disk.open(f'{TESTDIR}/zx_code.mgt.gz').files[0]
+        self.assertEqual(str(file), 'code         47  ZX CODE  32768,23456')
         self.assertEqual(file.type, FileType.ZX_CODE)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -459,6 +532,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_zx_code_auto(self):
         file = Disk.open(f'{TESTDIR}/zx_code_auto.mgt.gz').files[0]
+        self.assertEqual(str(file), 'code_auto     1  ZX CODE  32768,5,32768')
         self.assertEqual(file.type, FileType.ZX_CODE)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -479,6 +553,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_zx_snap_48k(self):
         file = Disk.open(f'{TESTDIR}/zx_snap_48k.mgt.gz').files[0]
+        self.assertEqual(str(file), 'Snap A       97  ZX SNP 48K')
         self.assertEqual(file.type, FileType.ZX_SNP_48K)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -503,6 +578,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_zx_screen(self):
         file = Disk.open(f'{TESTDIR}/zx_screen.mgt.gz').files[0]
+        self.assertEqual(str(file), 'Snap A       14  ZX SCREEN$')
         self.assertEqual(file.type, FileType.ZX_SCREEN)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -545,6 +621,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_zx_snap_128k(self):
         file = Disk.open(f'{TESTDIR}/zx_snap_128k.mgt.gz').files[0]
+        self.assertEqual(str(file), 'Snap A      258  ZX SNP 128K')
         self.assertEqual(file.type, FileType.ZX_SNP_128K)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -566,6 +643,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_zx_opentype(self):
         file = Disk.open(f'{TESTDIR}/zx_opentype.mgt.gz').files[0]
+        self.assertEqual(str(file), 'opentype     24  OPENTYPE')
         self.assertEqual(file.type, FileType.OPENTYPE)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -587,6 +665,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_zx_execute(self):
         file = Disk.open(f'{TESTDIR}/zx_execute.mgt.gz').files[0]
+        self.assertEqual(str(file), 'execute       1  ZX EXECUTE')
         self.assertEqual(file.type, FileType.ZX_EXECUTE)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -609,6 +688,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_basic(self):
         file = Disk.open(f'{TESTDIR}/basic_vars.mgt.gz').files[0]
+        self.assertEqual(str(file), 'basic         2  BASIC')
         self.assertEqual(file.type, FileType.BASIC)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -630,6 +710,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_basic_auto(self):
         file = Disk.open(f'{TESTDIR}/basic_auto.mgt.gz').files[0]
+        self.assertEqual(str(file), 'basic_auto    2  BASIC 12345')
         self.assertEqual(file.type, FileType.BASIC)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -650,6 +731,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_data(self):
         file = Disk.open(f'{TESTDIR}/data.mgt.gz').files[0]
+        self.assertEqual(str(file), 'abc_10        1  DATA () [abc]')
         self.assertEqual(file.type, FileType.DATA)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -670,6 +752,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_data_str(self):
         file = Disk.open(f'{TESTDIR}/data_str.mgt.gz').files[0]
+        self.assertEqual(str(file), 'abc$_5,10     1  DATA $ [abc$]')
         self.assertEqual(file.type, FileType.DATA_STR)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -690,6 +773,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_data_str_1(self):
         file = Disk.open(f'{TESTDIR}/data_str1.mgt.gz').files[0]
+        self.assertEqual(str(file), 'abc$          1  DATA $ [abc$]')
         self.assertEqual(file.type, FileType.DATA_STR)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -710,6 +794,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_code(self):
         file = Disk.open(f'{TESTDIR}/code.mgt.gz').files[0]
+        self.assertEqual(str(file), 'code          1  CODE  32768,5')
         self.assertEqual(file.type, FileType.CODE)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -728,8 +813,9 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.screen_mode)
         self.assertFalse(file.is_bootable())
 
-    def test_type_code(self):
+    def test_type_code_auto(self):
         file = Disk.open(f'{TESTDIR}/code_auto.mgt.gz').files[0]
+        self.assertEqual(str(file), 'code_auto     1  CODE  32768,5,32768')
         self.assertEqual(file.type, FileType.CODE)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -750,6 +836,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_screen_1(self):
         file = Disk.open(f'{TESTDIR}/screen_1.mgt.gz').files[0]
+        self.assertEqual(str(file), 'mode1        14  SCREEN$ [mode 1]')
         self.assertEqual(file.type, FileType.SCREEN)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -771,6 +858,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_screen_2(self):
         file = Disk.open(f'{TESTDIR}/screen_2.mgt.gz').files[0]
+        self.assertEqual(str(file), 'mode2        29  SCREEN$ [mode 2]')
         self.assertEqual(file.type, FileType.SCREEN)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -795,6 +883,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_screen_3(self):
         file = Disk.open(f'{TESTDIR}/screen_3.mgt.gz').files[0]
+        self.assertEqual(str(file), 'mode3        49  SCREEN$ [mode 3]')
         self.assertEqual(file.type, FileType.SCREEN)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -817,6 +906,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_screen_4(self):
         file = Disk.open(f'{TESTDIR}/screen_4.mgt.gz').files[0]
+        self.assertEqual(str(file), 'mode4        49  SCREEN$ [mode 4]')
         self.assertEqual(file.type, FileType.SCREEN)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -839,18 +929,21 @@ class FileTests(unittest.TestCase):
 
     def test_type_screen_flash(self):
         file = Disk.open(f'{TESTDIR}/screen_flash.mgt.gz').files[0]
+        self.assertEqual(str(file), 'flash        14  SCREEN$ [mode 1]')
         self.assertEqual(file.type, FileType.SCREEN)
         self.assertEqual(file.length, 6912+41)
         self.assertEqual(file.screen_mode, 1)
 
     def test_type_screen_line(self):
         file = Disk.open(f'{TESTDIR}/screen_line.mgt.gz').files[0]
+        self.assertEqual(str(file), 'line         50  SCREEN$ [mode 4]')
         self.assertEqual(file.type, FileType.SCREEN)
         self.assertEqual(file.length, 24576+549)
         self.assertEqual(file.screen_mode, 4)
 
     def test_type_dir(self):
         file = Disk.open(f'{TESTDIR}/dir.mgt.gz').files[0]
+        self.assertEqual(str(file), 'subdir        0  <DIR>                     28/07/2021 16:44')
         self.assertEqual(file.type, FileType.DIR)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -869,11 +962,13 @@ class FileTests(unittest.TestCase):
 
     def test_type_dir_file(self):
         file = Disk.open(f'{TESTDIR}/dir.mgt.gz').files[1]
+        self.assertEqual(str(file), 'code          1  CODE  32768,5,32768       28/07/2021 16:45')
         self.assertEqual(file.type, FileType.CODE)
         self.assertEqual(file.dir, 1)
 
     def test_type_driver_app(self):
         file = Disk.open(f'{TESTDIR}/driver_app.mgt.gz').files[0]
+        self.assertEqual(str(file), 'driverapp    21  DRIVER APP                05/12/1993 23:48')
         self.assertEqual(file.type, FileType.DRIVER_APP)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -895,6 +990,7 @@ class FileTests(unittest.TestCase):
 
     def test_type_driver_boot(self):
         file = Disk.open(f'{TESTDIR}/driver_boot.mgt.gz').files[0]
+        self.assertEqual(str(file), 'driverboot    1  DRIVER BOOT               17/04/1995 16:14')
         self.assertEqual(file.type, FileType.DRIVER_BOOT)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -945,6 +1041,13 @@ class FileTests(unittest.TestCase):
         self.assertEqual(File.unpack_time(b'\x1f\xe0\x63\xbb\xfd'), datetime(1999, 12, 31, 23, 59, 58))
         self.assertEqual(File.unpack_time(b'\x01\x88\x64\x00\x00'), datetime(2000, 1, 1, 0, 0, 0))
         self.assertEqual(File.unpack_time(b'\x1f\xe0\xb3\xbb\xfd'), datetime(2079, 12, 31, 23, 59, 58))
+
+    def test_word_to_le(self):
+        self.assertEqual(File.word_to_le(None), b'\x00\x00')
+        self.assertEqual(File.word_to_le(0), b'\x00\x00')
+        self.assertEqual(File.word_to_le(0x1234), b'\x34\x12')
+        self.assertEqual(File.word_to_le(0xffff), b'\xff\xff')
+        self.assertEqual(File.word_to_le(0x12345), b'\x45\x23')
 
 if __name__ == '__main__':
     unittest.main()

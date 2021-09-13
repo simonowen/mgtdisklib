@@ -71,6 +71,9 @@ class ImageTests(unittest.TestCase):
         self.assertFalse(image.compressed)
         self.assertEqual(len(image.data), 778496)
 
+    def test_open_invalid_image(self):
+        self.assertRaises(RuntimeError, Image.open, f'{TESTDIR}/samdos2')
+
     def test_save_mgt_image(self):
         image = Image()
         image.save(TESTOUTPUTFILE)
@@ -181,6 +184,8 @@ class ImageTests(unittest.TestCase):
         data = bytes((x & 0xff for x in range(512)))
         image.write_sector(10, 5, data)
         self.assertEqual(image.read_sector(10, 5), data)
+        self.assertRaises(ValueError, image.write_sector, 0, 1, bytes(511))
+        self.assertRaises(ValueError, image.write_sector, 0, 1, bytes(513))
 
 if __name__ == '__main__':
     unittest.main()
