@@ -147,7 +147,7 @@ class File:
         file.hidden = True if data[0] & 0x80 else False
         file.protected = True if data[0] & 0x40 else False
         file.name_raw = data[1:1+10]
-        file.name = file.name_raw.decode('ascii', errors='replace')[:10].rstrip()
+        file.name = file.name_raw.decode('ascii', errors='replace')[:10].rstrip(' \0')
         file.start_track = data[13]
         file.start_sector = data[14]
         file.sector_map = bitarray(endian='little')

@@ -57,7 +57,7 @@ class Disk:
             if file.type:
                 file.data = Disk.read_data(image, file.type, file.sectors, file.start_track, file.start_sector)
                 disk.files.append(file)
-            elif not file.name[0]:
+            elif not file.name:
                 break
 
         return disk
