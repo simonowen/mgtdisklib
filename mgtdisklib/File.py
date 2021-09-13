@@ -3,10 +3,10 @@
 # Part of https://github.com/simonowen/mgtdisklib
 
 import os, struct
-from enum import IntEnum
+from enum import Enum, IntEnum
 from datetime import datetime
 from typing import Tuple, Optional
-from bitarray import bitarray   # python -m pip install bitarray
+from bitarray import bitarray
 
 class FileType(IntEnum):
     NONE = 0
@@ -48,6 +48,11 @@ TYPE_NAMES = { 1:'ZX BASIC', 2:'ZX DATA ()', 3:'ZX DATA $()', 4:'ZX CODE',
     17:'DATA ()', 18:'DATA $', 19:'CODE', 20:'SCREEN$', 21:'<DIR>', 22:'DRIVER APP',
     23:'DRIVER BOOT', 24:'EDOS NOMEN', 25:'EDOS SYSTEM', 26:'EDOS OVERLAY',
     28:'HDOS DOS', 29:'HDOS DIR', 30:'HDOS DISK', 31:'HDOS TEMP' }
+
+class TimeFormat(Enum):
+    MASTERDOS = 0
+    BDOS = 1
+    BDOS17 = 2
 
 class File:
     def __init__(self):
@@ -242,7 +247,7 @@ class File:
             if self.type != FileType.NONE:
                 f.write(self.data)
 
-    def to_dir(self, start_track: int = 4, start_sector: int = 1, *, spt: int = 10) -> bytes:
+    def to_dir(self, start_track: int = 4, start_sector: int = 1, *, spt: int = 10, timefmt: TimeFormat = TimeFormat.BDOS) -> bytes:
         """Create directory entry from current file data"""
 
         data = bytearray(self.entry)
@@ -277,7 +282,7 @@ class File:
             data[242:242+3] = File.exec_to_triple(self.execute)
 
         if File.is_sam_file_type(self.type):
-            data[245:245+5] = File.pack_time(self.time)
+            data[245:245+5] = File.pack_time(self.time, timefmt)
 
         return bytes(data)
 
@@ -325,15 +330,16 @@ class File:
         return sector_map
 
     @staticmethod
-    def pack_time(time: Optional[datetime], *, bdos_format: bool = False) -> bytes:
+    def pack_time(time: Optional[datetime], format: TimeFormat = TimeFormat.BDOS) -> bytes:
         """Pack given date/time into 5 bytes"""
-
         if time is None:
             return b'\x00\x00\x00\x00\x00'
-        elif bdos_format:
-            data = time.day, (time.month << 3), time.year - 1900, (time.hour << 3) | (time.minute & 7), ((time.minute & 0x38) << 2) | (time.second // 2)
-        else:
+        elif format is TimeFormat.MASTERDOS:
+            data = time.day, time.month, time.year % 100, time.hour, time.minute
+        elif format is TimeFormat.BDOS:
             data = time.day, time.month, time.year - 1900, time.hour, time.minute
+        elif format is TimeFormat.BDOS17:
+            data = time.day, 0x80 | (time.month << 3), time.year - 1900, (time.hour << 3) | (time.minute & 7), ((time.minute & 0x38) << 2) | (time.second >> 1)
         return bytes(data)
 
     @staticmethod
@@ -343,7 +349,7 @@ class File:
         if data[0] == 0xff:
             return None
         elif data[1] & 0x80:  # BDOS >= 1.7a format?
-            year, month, day = data[2], 1 + ((data[1] & 0x71) >> 3), data[0]
+            year, month, day = data[2], (data[1] & 0x78) >> 3, data[0]
             hours, mins, secs = (data[3] & 0xf8) >> 3, ((data[4] & 0xe0) >> 2) | (data[3] & 0x07), (data[4] & 0x1f) << 1
         else:
             year, month, day = data[2], data[1], data[0]

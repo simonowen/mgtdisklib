@@ -1,6 +1,7 @@
 import os, unittest
 from datetime import datetime
-from mgtdisklib import Disk, File, FileType
+from bitarray import bitarray
+from mgtdisklib import Disk, File, FileType, TimeFormat
 
 TESTDIR=os.path.join(os.path.split(__file__)[0], 'data')
 TESTOUTPUTFILE=f'{TESTDIR}/__output__.file'
@@ -877,6 +878,39 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
         self.assertFalse(file.is_bootable())
+
+    def test_pack_time(self):
+        self.assertEqual(File.pack_time(None), b'\x00\x00\x00\x00\x00')
+
+        self.assertEqual(File.pack_time(datetime(2000, 1, 1, 0, 0, 0), TimeFormat.MASTERDOS), b'\x01\x01\x00\x00\x00')
+        self.assertEqual(File.pack_time(datetime(2079, 12, 31, 23, 59), TimeFormat.MASTERDOS), b'\x1f\x0c\x4f\x17\x3b')
+
+        self.assertEqual(File.pack_time(datetime(1980, 1, 1, 0, 0, 0), TimeFormat.BDOS), b'\x01\x01\x50\x00\x00')
+        self.assertEqual(File.pack_time(datetime(1999, 12, 31, 23, 59), TimeFormat.BDOS), b'\x1f\x0c\x63\x17\x3b')
+        self.assertEqual(File.pack_time(datetime(2000, 1, 1, 0, 0, 0), TimeFormat.BDOS), b'\x01\x01\x64\x00\x00')
+        self.assertEqual(File.pack_time(datetime(2079, 12, 31, 23, 59), TimeFormat.BDOS), b'\x1f\x0c\xb3\x17\x3b')
+
+        self.assertEqual(File.pack_time(datetime(1980, 1, 1, 0, 0, 0), TimeFormat.BDOS17), b'\x01\x88\x50\x00\x00')
+        self.assertEqual(File.pack_time(datetime(1999, 12, 31, 23, 59, 58), TimeFormat.BDOS17), b'\x1f\xe0\x63\xbb\xfd')
+        self.assertEqual(File.pack_time(datetime(2000, 1, 1, 0, 0, 0), TimeFormat.BDOS17), b'\x01\x88\x64\x00\x00')
+        self.assertEqual(File.pack_time(datetime(2079, 12, 31, 23, 59, 58), TimeFormat.BDOS17), b'\x1f\xe0\xb3\xbb\xfd')
+
+    def test_unpack_time(self):
+        self.assertIsNone(File.unpack_time(b'\x00\x00\x00\x00\x00'))
+        self.assertIsNone(File.unpack_time(b'\xff\xff\xff\xff\xff'))
+
+        self.assertEqual(File.unpack_time(b'\x01\x01\x00\x00\x00'), datetime(2000, 1, 1, 0, 0, 0))
+        self.assertEqual(File.unpack_time(b'\x1f\x0c\x4f\x17\x3b'), datetime(2079, 12, 31, 23, 59))
+
+        self.assertEqual(File.unpack_time(b'\x01\x01\x50\x00\x00'), datetime(1980, 1, 1, 0, 0, 0))
+        self.assertEqual(File.unpack_time(b'\x1f\x0c\x63\x17\x3b'), datetime(1999, 12, 31, 23, 59))
+        self.assertEqual(File.unpack_time(b'\x01\x01\x64\x00\x00'), datetime(2000, 1, 1, 0, 0, 0))
+        self.assertEqual(File.unpack_time(b'\x1f\x0c\xb3\x17\x3b'), datetime(2079, 12, 31, 23, 59))
+
+        self.assertEqual(File.unpack_time(b'\x01\x88\x50\x00\x00'), datetime(1980, 1, 1, 0, 0, 0))
+        self.assertEqual(File.unpack_time(b'\x1f\xe0\x63\xbb\xfd'), datetime(1999, 12, 31, 23, 59, 58))
+        self.assertEqual(File.unpack_time(b'\x01\x88\x64\x00\x00'), datetime(2000, 1, 1, 0, 0, 0))
+        self.assertEqual(File.unpack_time(b'\x1f\xe0\xb3\xbb\xfd'), datetime(2079, 12, 31, 23, 59, 58))
 
 if __name__ == '__main__':
     unittest.main()

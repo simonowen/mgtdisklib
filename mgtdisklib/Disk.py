@@ -8,7 +8,7 @@ from typing import List, Tuple, Optional
 from bitarray import bitarray
 
 from .Image import Image, MGTImage
-from .File import File, FileType
+from .File import File, FileType, TimeFormat
 
 class DiskType(Enum):
     SAMDOS = 1
@@ -80,11 +80,12 @@ class Disk:
         image = MGTImage(spt=spt)
         track, sector = self.dir_tracks, 1
         index = 0
+        timefmt = TimeFormat.MASTERDOS if self.type is DiskType.MASTERDOS else TimeFormat.BDOS
 
         for file in self.files:
             if index >= self.dir_tracks * spt * 2:
                 raise RuntimeError(f'too many files (>= {self.dir_tracks * spt * 2}) for directory')
-            entry = file.to_dir(track, sector, spt=image.spt)
+            entry = file.to_dir(track, sector, spt=image.spt, timefmt=timefmt)
             track, sector = Disk.write_data(image, file.type, track, sector, file.data)
             Disk.write_dir(image, index, entry)
             index += 1
