@@ -130,6 +130,77 @@ class DiskTests(unittest.TestCase):
         disk.files[0].data += bytes(510)
         self.assertRaises(RuntimeError, Disk.to_image, disk, spt=9)
 
+    def test_to_image_label_samdos(self):
+        disk = Disk()
+        disk.label = 'ABCDEFGHIJ'
+        image = disk.to_image()
+        disk2 = Disk.from_image(image)
+        self.assertEqual(disk.type, disk2.type)
+        self.assertIsNone(disk2.label)
+
+    def test_to_image_label_masterdos(self):
+        disk = Disk()
+        disk.type = DiskType.MASTERDOS
+        disk.label = 'ABCDEFGHIJ'
+        image = disk.to_image()
+        disk2 = Disk.from_image(image)
+        self.assertEqual(disk.type, disk2.type)
+        self.assertEqual(disk.label, disk2.label)
+
+    def test_to_image_label_bdos(self):
+        disk = Disk()
+        disk.type = DiskType.BDOS
+        disk.label = 'ABCDEFGHIJKLMNOP'
+        image = disk.to_image()
+        disk2 = Disk.from_image(image)
+        self.assertEqual(disk.type, disk2.type)
+        self.assertEqual(disk.label, disk2.label)
+
+    def test_to_image_label_blank_masterdos(self):
+        disk = Disk()
+        disk.type = DiskType.MASTERDOS
+        image = disk.to_image()
+        disk2 = Disk.from_image(image)
+        self.assertEqual(disk.type, disk2.type)
+        self.assertIsNone(disk2.label)
+
+    def test_to_image_label_blank_bdos(self):
+        disk = Disk()
+        disk.type = DiskType.BDOS
+        image = disk.to_image()
+        disk2 = Disk.from_image(image)
+        self.assertEqual(disk.type, disk2.type)
+        self.assertIsNone(disk2.label)
+
+    def test_to_image_label_blank_marker_masterdos(self):
+        disk = Disk()
+        disk.type = DiskType.MASTERDOS
+        disk.label = '*'
+        image = disk.to_image()
+        disk2 = Disk.from_image(image)
+        self.assertEqual(disk.type, disk2.type)
+        self.assertIsNone(disk2.label)
+
+    def test_to_image_label_and_serial_masterdos(self):
+        disk = Disk()
+        disk.type = DiskType.MASTERDOS
+        disk.label = 'ABCDEFGHIJ'
+        disk.serial = 0x1234
+        image = disk.to_image()
+        disk2 = Disk.from_image(image)
+        self.assertEqual(disk.type, disk2.type)
+        self.assertEqual(disk.label, disk2.label)
+        self.assertEqual(disk.serial, disk2.serial)
+
+    def test_to_image_serial_masterdos(self):
+        disk = Disk()
+        disk.type = DiskType.MASTERDOS
+        disk.serial = 0x1234
+        image = disk.to_image()
+        disk2 = Disk.from_image(image)
+        self.assertEqual(disk.type, disk2.type)
+        self.assertEqual(disk.serial, disk2.serial)
+
     def test_add_code_file(self):
         disk = Disk()
         self.assertEqual(len(disk.files), 0)

@@ -4,6 +4,7 @@
 
 import struct
 import fnmatch
+import random
 import operator
 import functools
 from enum import Enum
@@ -94,6 +95,22 @@ class Disk:
             track, sector = Disk.write_data(image, file.type, track, sector, file.data)
             Disk.write_dir(image, index, entry)
             index += 1
+
+        entry0 = bytearray(image.read_sector(0, 1))
+        if self.type is DiskType.MASTERDOS:
+            if self.label:
+                entry0[210:210+10] = bytes(self.label.ljust(10), 'ascii')[:10]
+            else:
+                entry0[210:210+1] = b'*'
+            serial = self.serial or random.getrandbits(16)
+            entry0[252:252+2] = struct.pack('<H', serial & 0xffff)
+        elif self.type is DiskType.BDOS:
+            entry0[232:232+4] = bytes('BDOS', 'ascii')
+            if self.label:
+                label_bytes = bytes((self.label or '').strip().ljust(16), 'ascii')[:16]
+                entry0[210:210+10] = label_bytes[:10]
+                entry0[250:250+6] = label_bytes[10:16]
+        image.write_sector(0, 1, entry0)
 
         return image
 
