@@ -4,9 +4,10 @@
 
 import os
 import struct
-from enum import Enum, IntEnum
 from datetime import datetime
-from typing import Tuple, Optional
+from enum import Enum, IntEnum
+from typing import Optional, Tuple
+
 from bitarray import bitarray
 
 
@@ -62,9 +63,9 @@ class TimeFormat(Enum):
 
 
 class File:
-    def __init__(self):
+    def __init__(self) -> None:
         self.type: FileType = FileType.NONE
-        self.data = bytearray()
+        self.data = bytes()
         self.entry: bytes = bytes(256)
         self.hidden: bool = False
         self.protected: bool = False
@@ -112,7 +113,7 @@ class File:
         return str
 
     @staticmethod
-    def from_code_path(path: str, *, filename: str = None, start: int = 0x8000, execute: int = None):
+    def from_code_path(path: str, *, filename: Optional[str] = None, start: int = 0x8000, execute: Optional[int] = None) -> 'File':
         """Create CODE file from path"""
 
         with open(path, 'rb') as f:
@@ -122,7 +123,7 @@ class File:
         return File.from_code_bytes(data, filename, start=start, execute=execute)
 
     @staticmethod
-    def from_code_bytes(data: bytes, filename: str, *, start: int = 0x8000, execute: int = None):
+    def from_code_bytes(data: bytes, filename: str, *, start: int = 0x8000, execute: Optional[int] = None) -> 'File':
         """Create CODE file from bytes"""
 
         file = File.from_dir(bytes(256))
@@ -140,7 +141,7 @@ class File:
         return file
 
     @staticmethod
-    def from_path(path: str):
+    def from_path(path: str) -> 'File':
         """Import file entry exported using save()"""
 
         with open(path, 'rb') as f:
@@ -150,7 +151,7 @@ class File:
             return file
 
     @staticmethod
-    def from_dir(data: bytes):
+    def from_dir(data: bytes) -> 'File':
         """Create from 256-byte directory entry data"""
 
         file = File()
@@ -269,13 +270,13 @@ class File:
     def to_dir(self, start_track: int = 4, start_sector: int = 1, *, spt: int = 10, timefmt: TimeFormat = TimeFormat.BDOS) -> bytes:
         """Create directory entry from current file data"""
 
-        data = bytearray(self.entry)
         if self.type == FileType.NONE:
-            return data
+            return self.entry
 
         self.sectors = len(self.data) // File.data_bytes_per_sector(self.type)
         sector_map = File.contig_sector_map(self.sectors, start_track, start_sector, spt)
 
+        data = bytearray(self.entry)
         data[0] = int(self.type) | (0x80 if self.hidden else 0) | (0x40 if self.protected else 0)
         data[1:1+10] = f'{self.name:10}'.encode('ascii', errors='replace')
         data[11:11+2] = struct.pack('>H', self.sectors)  # big endian

@@ -1,5 +1,6 @@
 import os
 import unittest
+
 from mgtdisklib import Image, MGTImage, SADImage
 
 TESTDIR = os.path.join(os.path.split(__file__)[0], 'data')

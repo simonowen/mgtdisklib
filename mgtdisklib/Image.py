@@ -2,8 +2,8 @@
 #
 # Part of https://github.com/simonowen/mgtdisklib
 
-import os
 import gzip
+import os
 from typing import Optional
 
 
@@ -15,7 +15,7 @@ class Image:
         self.data: bytearray = bytearray(80 * 2 * self.spt * 512)
 
     @staticmethod
-    def open(path: str):
+    def open(path: str) -> 'Image':
         """Create Image object from disk image file"""
         with open(path, 'rb') as f:
             data = bytearray(f.read())

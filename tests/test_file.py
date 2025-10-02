@@ -1,7 +1,9 @@
 import os
 import unittest
 from datetime import datetime
+
 from bitarray import bitarray
+
 from mgtdisklib import Disk, File, FileType, TimeFormat
 
 TESTDIR = os.path.join(os.path.split(__file__)[0], 'data')
@@ -626,7 +628,7 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.length, 737280)
         self.assertEqual(len(file.data), file.sectors * File.data_bytes_per_sector(file.type))
         self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
-        self.assertEqual(file.data, b'\xe5' * file.length)
+        self.assertEqual(file.data, b'\xe5' * 737280)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.start)
         self.assertIsNone(file.execute)

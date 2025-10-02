@@ -2,17 +2,18 @@
 #
 # Part of https://github.com/simonowen/mgtdisklib
 
-import struct
 import fnmatch
-import random
-import operator
 import functools
+import operator
+import random
+import struct
 from enum import Enum
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
+
 from bitarray import bitarray
 
-from .Image import Image, MGTImage
 from .File import File, FileType, TimeFormat
+from .Image import Image, MGTImage
 
 
 class DiskType(Enum):
@@ -40,13 +41,13 @@ class Disk:
         return len(self.files) > 0 and self.files[0].bootable
 
     @staticmethod
-    def open(path: str):
+    def open(path: str) -> 'Disk':
         """Load disk from disk image file"""
         image = Image.open(path)
         return Disk.from_image(image)
 
     @staticmethod
-    def from_image(image: Image):
+    def from_image(image: Image) -> 'Disk':
         """Construct a Disk object from a disk image"""
         disk = Disk()
         label_raw: Optional[bytes] = None
@@ -116,11 +117,11 @@ class Disk:
                 label_bytes = bytes((self.label or '').strip().ljust(16), 'ascii')[:16]
                 entry0[210:210+10] = label_bytes[:10]
                 entry0[250:250+6] = label_bytes[10:16]
-        image.write_sector(0, 1, entry0)
+        image.write_sector(0, 1, bytes(entry0))
 
         return image
 
-    def add_code_file(self, path: str, *, filename: str = None, at_index: int = None) -> None:
+    def add_code_file(self, path: str, *, filename: Optional[str] = None, at_index: Optional[int] = None) -> None:
         """Add CODE file from path"""
         file = File.from_code_path(path, filename=filename)
         self.delete(file.name)
@@ -182,7 +183,7 @@ class Disk:
         track, sector, offset = Disk.dir_position(index, image.spt)
         data = bytearray(image.read_sector(track, sector))
         data[offset:offset+256] = entry
-        image.write_sector(track, sector, data)
+        image.write_sector(track, sector, bytes(data))
 
     @staticmethod
     def read_data(image: Image, type: FileType, sectors: int, track: int, sector: int) -> bytes:
