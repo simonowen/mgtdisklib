@@ -70,7 +70,8 @@ class Disk:
             entry = Disk.read_dir(image, i)
             file = File.from_dir(entry)
             if file.type:
-                file.data = Disk.read_data(image, file.type, file.sectors, file.start_track, file.start_sector)
+                if file.start_track and file.start_sector:
+                    file.data = Disk.read_data(image, file.type, file.sectors, file.start_track, file.start_sector)
                 disk.files.append(file)
             elif not file.name:
                 break

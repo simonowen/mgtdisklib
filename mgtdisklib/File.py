@@ -241,6 +241,7 @@ class File:
 
         if file.type == FileType.DIR:
             file.dir = data[250]
+            file.start_track = file.start_sector = None
         elif File.is_sam_file_type(file.type) and data[254] not in (0x00, 0xff):
             file.dir = data[254]
         else:
@@ -338,8 +339,14 @@ class File:
         return 512 if File.is_contig_data_type(type) else 510
 
     @staticmethod
-    def contig_sector_map(sectors: int, start_track: int, start_sector: int, spt: int = 10) -> bitarray:
+    def contig_sector_map(sectors: int, start_track: Optional[int], start_sector: Optional[int], spt: int = 10) -> bitarray:
         """Generate sector map of contiguous sectors from a given position"""
+        if not start_track or not start_sector:
+            raise ValueError('missing start track and sector')
+        elif start_sector > spt or start_sector < 1:
+            raise ValueError('start sector out of range')
+        elif sectors < 0:
+            raise ValueError('sectors must be non-negative')
         sector_map = bitarray('0' * 1560, endian='little')
         offset = (start_track - 4 - (0 if start_track < 80 else (128 - 80))) * spt + (start_sector - 1)
         sector_map[offset:offset+sectors] = 1

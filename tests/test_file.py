@@ -965,9 +965,11 @@ class FileTests(unittest.TestCase):
         self.assertFalse(file.protected)
         self.assertEqual(file.name, 'subdir')
         self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
+        self.assertIsNone(file.start_track)
+        self.assertIsNone(file.start_sector)
         self.assertEqual(file.sectors, 0)
-        self.assertEqual(len(file.data), file.sectors * File.data_bytes_per_sector(file.type))
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertIsNone(file.start)
+        self.assertIsNone(file.length)
         self.assertEqual(len(file.data), 0)
         self.assertEqual(file.time, datetime(2021, 7, 28, 16, 44))
         self.assertEqual(file.dir, 1)
@@ -1040,6 +1042,37 @@ class FileTests(unittest.TestCase):
         self.assertEqual(File.pack_time(datetime(1999, 12, 31, 23, 59, 58), TimeFormat.BDOS17), b'\x1f\xe0\x63\xbb\xfd')
         self.assertEqual(File.pack_time(datetime(2000, 1, 1, 0, 0, 0), TimeFormat.BDOS17), b'\x01\x88\x64\x00\x00')
         self.assertEqual(File.pack_time(datetime(2079, 12, 31, 23, 59, 58), TimeFormat.BDOS17), b'\x1f\xe0\xb3\xbb\xfd')
+
+    def test_contig_sector_map_params(self):
+        self.assertRaises(ValueError, File.contig_sector_map, -1, 4, 1)
+        self.assertRaises(ValueError, File.contig_sector_map, 1, None, 1)
+        self.assertRaises(ValueError, File.contig_sector_map, 1, 4, None)
+        self.assertRaises(ValueError, File.contig_sector_map, 1, 4, 11)
+        self.assertRaises(ValueError, File.contig_sector_map, 1, 4, 10, spt=9)
+    
+    def test_config_sector_map_start(self):
+        self.assertEqual(File.contig_sector_map(0, 4, 1)[:10], bitarray('0000000000'))
+        self.assertEqual(File.contig_sector_map(1, 4, 1)[:10], bitarray('1000000000'))
+        self.assertEqual(File.contig_sector_map(2, 4, 1)[:10], bitarray('1100000000'))
+        self.assertEqual(File.contig_sector_map(3, 4, 1)[:10], bitarray('1110000000'))
+        self.assertEqual(File.contig_sector_map(4, 4, 1)[:10], bitarray('1111000000'))
+        self.assertEqual(File.contig_sector_map(5, 4, 1)[:10], bitarray('1111100000'))
+        self.assertEqual(File.contig_sector_map(6, 4, 1)[:10], bitarray('1111110000'))
+        self.assertEqual(File.contig_sector_map(7, 4, 1)[:10], bitarray('1111111000'))
+        self.assertEqual(File.contig_sector_map(8, 4, 1)[:10], bitarray('1111111100'))
+        self.assertEqual(File.contig_sector_map(9, 4, 1)[:10], bitarray('1111111110'))
+
+    def test_config_sector_map_offset(self):
+        self.assertEqual(File.contig_sector_map(8, 4, 1)[:18], bitarray('111111110000000000'))
+        self.assertEqual(File.contig_sector_map(8, 4, 2)[:18], bitarray('011111111000000000'))
+        self.assertEqual(File.contig_sector_map(8, 4, 3)[:18], bitarray('001111111100000000'))
+        self.assertEqual(File.contig_sector_map(8, 4, 4)[:18], bitarray('000111111110000000'))
+        self.assertEqual(File.contig_sector_map(8, 4, 5)[:18], bitarray('000011111111000000'))
+        self.assertEqual(File.contig_sector_map(8, 4, 6)[:18], bitarray('000001111111100000'))
+        self.assertEqual(File.contig_sector_map(8, 4, 7)[:18], bitarray('000000111111110000'))
+        self.assertEqual(File.contig_sector_map(8, 4, 8)[:18], bitarray('000000011111111000'))
+        self.assertEqual(File.contig_sector_map(8, 4, 9)[:18], bitarray('000000001111111100'))
+        self.assertEqual(File.contig_sector_map(8, 4,10)[:18], bitarray('000000000111111110'))
 
     def test_unpack_time(self):
         self.assertIsNone(File.unpack_time(b'\x00\x00\x00\x00\x00'))
