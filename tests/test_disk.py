@@ -201,6 +201,18 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(disk.type, disk2.type)
         self.assertEqual(disk.serial, disk2.serial)
 
+    def test_bootable_empty(self):
+        disk = Disk()
+        self.assertFalse(disk.bootable)
+
+    def test_bootable_samdos2(self):
+        disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
+        self.assertTrue(disk.bootable)
+
+    def test_bootable_basic(self):
+        disk = Disk.open(f'{TESTDIR}/zx_basic_auto.mgt.gz')
+        self.assertFalse(disk.bootable)
+
     def test_add_code_file(self):
         disk = Disk()
         self.assertEqual(len(disk.files), 0)

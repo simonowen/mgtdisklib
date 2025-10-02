@@ -61,6 +61,20 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
 
+    def test_bootable(self):
+        file = File()
+        self.assertFalse(file.bootable)
+
+    def test_bootable_samdos2(self):
+        file = File.from_code_path(f'{TESTDIR}/samdos2')
+        self.assertTrue(file.bootable)
+        self.assertTrue(file.is_bootable())  # deprecated
+
+    def test_bootable_basic(self):
+        file = Disk.open(f'{TESTDIR}/zx_basic_auto.mgt.gz').files[0]
+        self.assertFalse(file.bootable)
+        self.assertFalse(file.is_bootable())  # deprecated
+
     def test_from_code_path(self):
         file = File.from_code_path(f'{TESTDIR}/samdos2')
         self.assertEqual(file.type, FileType.CODE)
@@ -76,7 +90,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
-        self.assertTrue(file.is_bootable())
+        self.assertTrue(file.bootable)
 
     def test_from_code_path_params(self):
         file = File.from_code_path(f'{TESTDIR}/samdos2', filename='altname', start=123456, execute=54321)
@@ -93,7 +107,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
-        self.assertTrue(file.is_bootable())
+        self.assertTrue(file.bootable)
 
     def test_from_code_bytes(self):
         with open(f'{TESTDIR}/samdos2', 'rb') as f:
@@ -111,7 +125,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
-        self.assertTrue(file.is_bootable())
+        self.assertTrue(file.bootable)
 
     def test_from_code_bytes_params(self):
         with open(f'{TESTDIR}/samdos2', 'rb') as f:
@@ -130,7 +144,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
-        self.assertTrue(file.is_bootable())
+        self.assertTrue(file.bootable)
 
     def test_from_path(self):
         file = File.from_path(f'{TESTDIR}/samdos2.file')
@@ -154,7 +168,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
-        self.assertTrue(file.is_bootable())
+        self.assertTrue(file.bootable)
 
     def test_from_dir(self):
         with open(f'{TESTDIR}/samdos2.file', 'rb') as f:
@@ -178,7 +192,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
-        self.assertTrue(file.is_bootable())
+        self.assertTrue(file.bootable)
 
     def test_save(self):
         file = File.from_code_path(f'{TESTDIR}/samdos2', start=491529)
@@ -425,7 +439,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_zx_basic_auto(self):
         file = Disk.open(f'{TESTDIR}/zx_basic_auto.mgt.gz').files[0]
@@ -446,7 +460,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_zx_data(self):
         file = Disk.open(f'{TESTDIR}/zx_data.mgt.gz').files[0]
@@ -467,7 +481,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_zx_data_str1(self):
         file = Disk.open(f'{TESTDIR}/zx_data_str1.mgt.gz').files[0]
@@ -488,7 +502,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_zx_data_str2(self):
         file = Disk.open(f'{TESTDIR}/zx_data_str2.mgt.gz').files[0]
@@ -509,7 +523,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_zx_code(self):
         file = Disk.open(f'{TESTDIR}/zx_code.mgt.gz').files[0]
@@ -530,7 +544,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_zx_code_auto(self):
         file = Disk.open(f'{TESTDIR}/zx_code_auto.mgt.gz').files[0]
@@ -551,7 +565,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_zx_snap_48k(self):
         file = Disk.open(f'{TESTDIR}/zx_snap_48k.mgt.gz').files[0]
@@ -572,7 +586,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_mdrv(self):
         # TODO?
@@ -598,7 +612,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_special(self):
         file = Disk.open(f'{TESTDIR}/emptycpm.mgt.gz').files[0]
@@ -619,7 +633,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_zx_snap_128k(self):
         file = Disk.open(f'{TESTDIR}/zx_snap_128k.mgt.gz').files[0]
@@ -641,7 +655,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_zx_opentype(self):
         file = Disk.open(f'{TESTDIR}/zx_opentype.mgt.gz').files[0]
@@ -663,7 +677,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_zx_execute(self):
         file = Disk.open(f'{TESTDIR}/zx_execute.mgt.gz').files[0]
@@ -686,7 +700,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_basic(self):
         file = Disk.open(f'{TESTDIR}/basic_vars.mgt.gz').files[0]
@@ -708,7 +722,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_basic_auto(self):
         file = Disk.open(f'{TESTDIR}/basic_auto.mgt.gz').files[0]
@@ -729,7 +743,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_data(self):
         file = Disk.open(f'{TESTDIR}/data.mgt.gz').files[0]
@@ -750,7 +764,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_data_str(self):
         file = Disk.open(f'{TESTDIR}/data_str.mgt.gz').files[0]
@@ -771,7 +785,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_data_str_1(self):
         file = Disk.open(f'{TESTDIR}/data_str1.mgt.gz').files[0]
@@ -792,7 +806,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_code(self):
         file = Disk.open(f'{TESTDIR}/code.mgt.gz').files[0]
@@ -813,7 +827,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_code_auto(self):
         file = Disk.open(f'{TESTDIR}/code_auto.mgt.gz').files[0]
@@ -834,7 +848,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_screen_1(self):
         file = Disk.open(f'{TESTDIR}/screen_1.mgt.gz').files[0]
@@ -856,7 +870,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_screen_2(self):
         file = Disk.open(f'{TESTDIR}/screen_2.mgt.gz').files[0]
@@ -881,7 +895,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_screen_3(self):
         file = Disk.open(f'{TESTDIR}/screen_3.mgt.gz').files[0]
@@ -904,7 +918,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_screen_4(self):
         file = Disk.open(f'{TESTDIR}/screen_4.mgt.gz').files[0]
@@ -927,7 +941,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_screen_flash(self):
         file = Disk.open(f'{TESTDIR}/screen_flash.mgt.gz').files[0]
@@ -960,7 +974,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.execute)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_dir_file(self):
         file = Disk.open(f'{TESTDIR}/dir.mgt.gz').files[1]
@@ -988,7 +1002,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_type_driver_boot(self):
         file = Disk.open(f'{TESTDIR}/driver_boot.mgt.gz').files[0]
@@ -1009,7 +1023,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
-        self.assertFalse(file.is_bootable())
+        self.assertFalse(file.bootable)
 
     def test_pack_time(self):
         self.assertEqual(File.pack_time(None), b'\x00\x00\x00\x00\x00')

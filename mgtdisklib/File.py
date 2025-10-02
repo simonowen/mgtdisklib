@@ -248,6 +248,15 @@ class File:
 
         return file
 
+    @property
+    def bootable(self) -> bool:
+        """True if the file would be bootable in the first directory slot"""
+        if len(self.data) < 0x104:
+            return False
+
+        bootsig = bytes([x & 0x5f for x in self.data[0x100:0x100+4]])
+        return bootsig == b'BOOT'
+
     def save(self, path: str) -> None:
         """Export directory entry and file content for later"""
 
@@ -295,12 +304,10 @@ class File:
 
         return bytes(data)
 
+    # Deprecated, use bootable propery instead, usually as Disk.bootable
     def is_bootable(self) -> bool:
         """Check whether the file would be bootable in the first directory slot"""
-
-        if len(self.data) >= 0x104:
-            return bytes([x & 0x5f for x in self.data[0x100:0x100+4]]) == bytes('BOOT', 'ascii')
-        return False
+        return self.bootable
 
     def code_data_header(self) -> bytes:
         """Generate 9-byte file data header for a CODE file"""

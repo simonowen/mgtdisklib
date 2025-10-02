@@ -34,6 +34,11 @@ class Disk:
         """String representation of Disk, as directory listing"""
         return self.dir()
 
+    @property
+    def bootable(self) -> bool:
+        """True if disk is bootable due to first file entry"""
+        return len(self.files) > 0 and self.files[0].bootable
+
     @staticmethod
     def open(path: str):
         """Load disk from disk image file"""
