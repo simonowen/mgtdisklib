@@ -1,6 +1,8 @@
 # Disk wrapper for MGT logical disk format.
 #
 # Part of https://github.com/simonowen/mgtdisklib
+#
+# SPDX-License-Identifier: MIT
 
 import fnmatch
 import functools

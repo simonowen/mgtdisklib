@@ -1,6 +1,8 @@
 # Image wrapper for disk image containers (MGT/SAD/EDSK).
 #
 # Part of https://github.com/simonowen/mgtdisklib
+#
+# SPDX-License-Identifier: MIT
 
 import gzip
 import os

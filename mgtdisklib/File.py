@@ -1,6 +1,8 @@
 # File wrapper for MGT directory entries plus data.
 #
 # Part of https://github.com/simonowen/mgtdisklib
+#
+# SPDX-License-Identifier: MIT
 
 import os
 import struct

@@ -9,43 +9,31 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.6, 3.7, 3.8, 3.9]
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        python -m pip install mypy
-        if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; fi
-        if [ -f requirements_test.txt ]; then python -m pip install -r requirements_test.txt; fi
+        python3 -m pip install --upgrade pip
+        python3 -m pip install .[dev]
 
-    - name: Test with unittest
+    - name: Test with pytest
       run: |
-        python -m unittest
+        python3 -m pytest -ra -q --cov=mgtdisklib --cov-report=term-missing --cov-fail-under=100
 
     - name: Lint with mypy
       run: |
-        python -m mypy --version
-        python -m mypy --python-version "${{ matrix.python-version }}" mgtdisklib
-
-    - name: Link with flake8
-      run: |
-        flake8 --version
-        flake8 .
-
-    - name: Code coverage of unit tests
-      run: |
-        coverage --version
-        coverage run -m unittest
-        coverage report -m
+        python3 -m mypy --version
+        python3 -m mypy --python-version "${{ matrix.python-version }}" mgtdisklib
