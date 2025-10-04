@@ -52,6 +52,7 @@ class Disk:
     def from_image(image: Image) -> 'Disk':
         """Construct a Disk object from a disk image"""
         disk = Disk()
+        disk.compressed = image.compressed
         label_raw: Optional[bytes] = None
 
         entry0 = image.read_sector(0, 1)

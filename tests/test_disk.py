@@ -76,6 +76,7 @@ class DiskTests(unittest.TestCase):
         disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
         image = disk.to_image()
         disk2 = Disk.from_image(image)
+        self.assertFalse(disk2.compressed)
         self.assertRaises(ValueError, Disk.to_image, disk, spt=0)
 
         self.assertEqual(len(image.data), 819200)
@@ -83,7 +84,6 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(disk.dir_tracks, disk2.dir_tracks)
         self.assertEqual(disk.label, disk2.label)
         self.assertEqual(disk.serial, disk2.serial)
-        self.assertEqual(disk.compressed, disk2.compressed)
         self.assertEqual(len(disk.files), len(disk2.files))
         self.assertEqual(disk.files[0].data, disk2.files[0].data)
 
@@ -91,13 +91,13 @@ class DiskTests(unittest.TestCase):
         disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
         image = disk.to_image(spt=9)
         disk2 = Disk.from_image(image)
+        self.assertFalse(disk2.compressed)
 
         self.assertEqual(len(image.data), 737280)
         self.assertEqual(disk.type, disk2.type)
         self.assertEqual(disk.dir_tracks, disk2.dir_tracks)
         self.assertEqual(disk.label, disk2.label)
         self.assertEqual(disk.serial, disk2.serial)
-        self.assertEqual(disk.compressed, disk2.compressed)
         self.assertEqual(len(disk.files), len(disk2.files))
         self.assertEqual(disk.files[0].data, disk2.files[0].data)
 
