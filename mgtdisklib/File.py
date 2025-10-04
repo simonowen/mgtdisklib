@@ -65,10 +65,11 @@ class TimeFormat(Enum):
 
 
 class File:
+    HEADER_SIZE = 9
+
     def __init__(self) -> None:
-        self.type: FileType = FileType.NONE
-        self.data = bytes()
         self.entry: bytes = bytes(256)
+        self.type: FileType = FileType.NONE
         self.hidden: bool = False
         self.protected: bool = False
         self.name_raw: bytes = bytes()
@@ -76,14 +77,14 @@ class File:
         self.start_track: Optional[int] = None
         self.start_sector: Optional[int] = None
         self.sector_map: bitarray = bitarray(endian='little')
-        self.sectors: int = 0
         self.start: Optional[int] = None
-        self.length: Optional[int] = None
         self.execute: Optional[int] = None
         self.time: Optional[datetime] = None
         self.dir: Optional[int] = None
         self.data_var: Optional[str] = None
         self.screen_mode: Optional[int] = None
+        self.header = bytes()
+        self.data = bytes()
 
     def __str__(self) -> str:
         """String representation of File, like directory text"""
@@ -128,18 +129,13 @@ class File:
     def from_code_bytes(data: bytes, filename: str, *, start: int = 0x8000, execute: Optional[int] = None) -> 'File':
         """Create CODE file from bytes"""
 
-        file = File.from_dir(bytes(256))
+        file, _ = File.from_dir(bytes(256))
         file.type = FileType.CODE
         file.name = filename
         file.name_raw = bytes(f'{filename:10}', 'ascii')
-        file.length = len(data)
         file.start = start
         file.execute = execute
-
-        chunk_size = File.data_bytes_per_sector(file.type)
-        file.data = file.code_data_header() + data
-        file.data += bytes(-len(file.data) % chunk_size)   # pad to chunk size
-        file.sectors = len(file.data) // chunk_size
+        file.data = data
         return file
 
     @staticmethod
@@ -147,13 +143,13 @@ class File:
         """Import file entry exported using save()"""
 
         with open(path, 'rb') as f:
-            file = File.from_dir(f.read(256))
+            file, _ = File.from_dir(f.read(256))
             if file.type != FileType.NONE:
                 file.data = f.read()
             return file
 
     @staticmethod
-    def from_dir(data: bytes) -> 'File':
+    def from_dir(data: bytes) -> Tuple['File', int]:
         """Create from 256-byte directory entry data"""
 
         file = File()
@@ -167,14 +163,10 @@ class File:
         file.start_sector = data[14]
         file.sector_map = bitarray(endian='little')
         file.sector_map.frombytes(data[15:15+195])
-        file.sectors = file.sector_map.count(1)  # trust bitmap over stored sector count [see MNEMOdemo1]
         file.time = File.unpack_time(data[245:245+5]) if File.is_sam_file_type(file.type) else None
 
-        file.start = None
-        file.length = None
-        file.execute = None
-        file.data_var = None
-        file.screen_mode = None
+        num_sectors = file.sector_map.count(1)  # trust bitmap over stored sector count [see MNEMOdemo1]
+        length = 0
 
         zx_start = File.le_word(data[214:214+2])
         zx_length = File.le_word(data[212:212+2])
@@ -188,77 +180,88 @@ class File:
 
         if file.type == FileType.ZX_BASIC:
             file.start = zx_start
-            file.length = zx_length
+            length = zx_length
             file.execute = None if data[219] == 0xff else zx_execute
         elif file.type == FileType.ZX_DATA:
             file.start = zx_start
-            file.length = zx_length
+            length = zx_length
             file.data_var = zx_datavar
         elif file.type == FileType.ZX_DATA_STR:
             file.start = zx_start
-            file.length = zx_length
+            length = zx_length
             file.data_var = zx_datavar + '$'
         elif file.type == FileType.ZX_CODE:
             file.start = zx_start
-            file.length = zx_length
+            length = zx_length
             file.execute = None if data[219] == 0x00 else zx_execute
         elif file.type == FileType.ZX_SNP_48K:
-            file.length = 0xc000
+            length = 0xc000
         elif file.type == FileType.ZX_SCREEN:
             file.start = zx_start
-            file.length = zx_length
+            length = zx_length
         elif file.type == FileType.SPECIAL:
-            file.length = file.sectors * 512
+            length = num_sectors * 512
         elif file.type == FileType.ZX_SNP_128K:
-            file.length = 0x20001
+            length = 0x20001
         elif file.type == FileType.OPENTYPE:
-            file.length = data[210] * 0x10000 + zx_length
+            length = data[210] * 0x10000 + zx_length
         elif file.type == FileType.ZX_EXECUTE:
-            file.length = 510
+            length = 510
         elif file.type == FileType.BASIC:
             file.start = sam_start
-            file.length = sam_length
+            length = sam_length
             file.execute = File.triple_to_line(data[242:242+3])
         elif file.type == FileType.DATA:
             file.start = sam_start
-            file.length = sam_length
+            length = sam_length
             file.data_var = sam_datavar
         elif file.type == FileType.DATA_STR:
             file.start = sam_start
-            file.length = sam_length
+            length = sam_length
             file.data_var = sam_datavar + '$'
         elif file.type == FileType.CODE:
             file.start = sam_start
-            file.length = sam_length
+            length = sam_length
             file.execute = sam_execute
         elif file.type == FileType.SCREEN:
             file.start = sam_start
-            file.length = sam_length
+            length = sam_length
             file.screen_mode = 1 + (data[221] & 0x3)
         elif file.type == FileType.DRIVER_APP:
             file.start = sam_start
-            file.length = sam_length
+            length = sam_length
         elif file.type == FileType.DRIVER_BOOT:
             file.start = sam_start
-            file.length = sam_length
+            length = sam_length
 
         if file.type == FileType.DIR:
             file.dir = data[250]
             file.start_track = file.start_sector = None
         elif File.is_sam_file_type(file.type) and data[254] not in (0x00, 0xff):
             file.dir = data[254]
-        else:
-            file.dir = None
 
-        return file
+        return file, length
+
+    @property
+    def length(self) -> int:
+        """File length in bytes"""
+        return len(self.data)
+
+    @property
+    def sectors(self) -> int:
+        """Number of sectors used by file"""
+        header_size = File.type_header_size(self.type)
+        chunk_size = File.data_bytes_per_sector(self.type)
+        return 0 if self.data is None else (header_size + len(self.data) + chunk_size - 1) // chunk_size
 
     @property
     def bootable(self) -> bool:
         """True if the file would be bootable in the first directory slot"""
-        if len(self.data) < 0x104:
+        offset = 0x100 - File.type_header_size(self.type)
+        if len(self.data) < offset+4:
             return False
 
-        bootsig = bytes([x & 0x5f for x in self.data[0x100:0x100+4]])
+        bootsig = bytes([x & 0x5f for x in self.data[offset:offset+4]])
         return bootsig == b'BOOT'
 
     def save(self, path: str) -> None:
@@ -266,7 +269,7 @@ class File:
 
         with open(path, 'wb') as f:
             f.write(self.to_dir())
-            if self.type != FileType.NONE:
+            if self.data:
                 f.write(self.data)
 
     def to_dir(self, start_track: int = 4, start_sector: int = 1, *, spt: int = 10, timefmt: TimeFormat = TimeFormat.BDOS) -> bytes:
@@ -275,33 +278,76 @@ class File:
         if self.type == FileType.NONE:
             return self.entry
 
-        self.sectors = len(self.data) // File.data_bytes_per_sector(self.type)
         sector_map = File.contig_sector_map(self.sectors, start_track, start_sector, spt)
 
-        data = bytearray(self.entry)
+        # Use original as a template until we support writing all fields.
+        data = bytearray(self.entry or bytes(256))
+
         data[0] = int(self.type) | (0x80 if self.hidden else 0) | (0x40 if self.protected else 0)
         data[1:1+10] = f'{self.name:10}'.encode('ascii', errors='replace')
         data[11:11+2] = struct.pack('>H', self.sectors)  # big endian
-        data[13] = start_track
-        data[14] = start_sector
+        data[13] = start_track or 0
+        data[14] = start_sector or 0
         data[15:15+195] = sector_map.tobytes()
 
-        # Limited support for updating length/start/execute.
+        zx_start = File.word_to_le(self.start or 0)
+        zx_length = File.word_to_le(self.length or 0)
+        zx_execute = File.word_to_le(self.execute or 0)
+        #zx_datavar = ord(self.data_var or 'a') - ord('a') + 1
+
+        sam_start = File.addr_to_triple(self.start)
+        sam_length = File.len_to_triple(self.length)
+        sam_execute = File.exec_to_triple(self.execute)
+
         if self.type == FileType.ZX_BASIC:
-            data[218:218+2] = b'\xff\xff' if self.execute is None else File.word_to_le(self.execute)
+            data[211:211+1] = b'\x00'
+            data[218:218+2] = File.word_to_le(self.execute or 0xffff)
+        #elif self.type == FileType.ZX_DATA:
+        #    data[211:211+1] = b'\x01'
+        #elif self.type == FileType.ZX_DATA_STR:
+        #    data[211:211+1] = b'\x02'
+        #    data[216] = zx_datavar
         elif self.type == FileType.ZX_CODE:
-            data[212:212+2] = File.word_to_le(self.length)
-            data[214:214+2] = File.word_to_le(self.start)
-            data[218:218+2] = File.word_to_le(self.execute)
+            data[211:211+1] = b'\x03'
+            data[212:212+2] = zx_length
+            data[214:214+2] = zx_start
+            data[218:218+2] = zx_execute
+        #elif self.type == FileType.ZX_SNP_48K:
+        #    data[211:211+1] = b'\x03'
+        #elif self.type == FileType.ZX_MDRV:
+        #    pass
+        #elif self.type == FileType.ZX_SCREEN:
+        #    data[211:211+1] = b'\x03'
+        #    if self.start is not None:
+        #        data[212:212+2] = zx_length
+        #        data[214:214+2] = zx_start
+        #elif self.type == FileType.SPECIAL:
+        #    pass
+        #elif self.type == FileType.ZX_SNP_128K:
+        #    data[211:211+1] = b'\x10'
         elif self.type == FileType.OPENTYPE:
             data[210] = 0 if self.length is None else self.length >> 16
-            data[212:212+2] = File.word_to_le(self.length)
+            data[212:212+2] = zx_length
+        #elif self.type == FileType.ZX_EXECUTE:
+        #    pass
         elif self.type == FileType.BASIC:
             data[242:242+3] = File.line_to_triple(self.execute)
+        #elif self.type == FileType.DATA:
+        #    pass
+        #elif self.type == FileType.DATA_STR:
+        #    pass
         elif self.type == FileType.CODE:
-            data[236:236+3] = File.addr_to_triple(self.start)
-            data[239:239+3] = File.len_to_triple(self.length)
-            data[242:242+3] = File.exec_to_triple(self.execute)
+            data[236:236+3] = sam_start
+            data[239:239+3] = sam_length
+            data[242:242+3] = sam_execute
+        #elif self.type == FileType.SCREEN:
+        #    pass
+        #elif self.type == FileType.DIR:
+        #    pass
+        #elif self.type == FileType.DRIVER_APP:
+        #    pass
+        #elif self.type == FileType.DRIVER_BOOT:
+        #    pass
 
         if File.is_sam_file_type(self.type):
             data[245:245+5] = File.pack_time(self.time, timefmt)
@@ -313,17 +359,27 @@ class File:
         """Check whether the file would be bootable in the first directory slot"""
         return self.bootable
 
-    def code_data_header(self) -> bytes:
-        """Generate 9-byte file data header for a CODE file"""
+    @staticmethod
+    def type_has_data_header(type: FileType) -> bool:
+        """Return whether a given file type uses a 9-byte file header"""
+        return type in (
+            FileType.ZX_BASIC,
+            FileType.ZX_DATA,
+            FileType.ZX_DATA_STR,
+            FileType.ZX_CODE,
+            FileType.ZX_SCREEN,
+            FileType.BASIC,
+            FileType.DATA,
+            FileType.DATA_STR,
+            FileType.CODE,
+            FileType.SCREEN,
+            FileType.DRIVER_APP,
+            FileType.DRIVER_BOOT)
 
-        header = bytearray(9)
-        header[0] = self.type
-        header[1:1+2] = File.len_to_triple(self.length)[1:]
-        header[3:3+2] = File.addr_to_triple(self.start)[1:]
-        header[5:5+2] = b'\xff\xff'
-        header[7] = File.len_to_triple(self.length)[0]
-        header[8] = File.addr_to_triple(self.start)[0]
-        return bytes(header)
+    @staticmethod
+    def type_header_size(type: FileType) -> int:
+        """Return size of file header for a given file type"""
+        return File.HEADER_SIZE if File.type_has_data_header(type) else 0
 
     @staticmethod
     def is_sam_file_type(type: FileType) -> bool:

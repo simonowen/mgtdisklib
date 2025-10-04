@@ -72,12 +72,17 @@ class Disk:
 
         for i in range(disk.dir_tracks * image.spt * 2):
             entry = Disk.read_dir(image, i)
-            file = File.from_dir(entry)
+            file, length = File.from_dir(entry)
             if file.type:
                 if file.start_track and file.start_sector:
-                    file.data = Disk.read_data(image, file.type, file.sectors, file.start_track, file.start_sector)
+                    header_size = File.type_header_size(file.type)
+                    file_size = header_size + length
+                    file.data = Disk.read_data(image, file.type, file_size, file.start_track, file.start_sector)
+                    if File.type_has_data_header(file.type):
+                        file.header = file.data[:header_size]
+                        file.data = file.data[header_size:]
                 disk.files.append(file)
-            elif not file.name:
+            elif not file.name_raw[1]:
                 break
 
         return disk
@@ -102,7 +107,10 @@ class Disk:
             if index >= self.dir_tracks * spt * 2:
                 raise RuntimeError(f'too many files (>= {self.dir_tracks * spt * 2}) for directory')
             entry = file.to_dir(track, sector, spt=image.spt, timefmt=timefmt)
-            track, sector = Disk.write_data(image, file.type, track, sector, file.data)
+            data = file.data
+            if File.type_has_data_header(file.type):
+                data = file.entry[0xd3:0xd3+File.HEADER_SIZE] + data
+            track, sector = Disk.write_data(image, file.type, track, sector, data)
             Disk.write_dir(image, index, entry)
             index += 1
 
@@ -189,32 +197,33 @@ class Disk:
         image.write_sector(track, sector, bytes(data))
 
     @staticmethod
-    def read_data(image: Image, type: FileType, sectors: int, track: int, sector: int) -> bytes:
+    def read_data(image: Image, type: FileType, length: int, track: int, sector: int) -> bytes:
         """Read file data"""
         data = b''
+        chunk_size = File.data_bytes_per_sector(type)
+
         try:
-            if File.is_contig_data_type(type):
-                for _ in range(sectors):
-                    data += image.read_sector(track, sector)
+            while len(data) < length:
+                chunk = image.read_sector(track, sector)
+                if chunk_size == 512:
+                    data += chunk
                     track, sector = Disk.next_sector(track, sector, image.spt)
-            else:
-                for _ in range(sectors):
-                    chunk = image.read_sector(track, sector)
+                else:
                     data += chunk[:-2]
                     track, sector = chunk[-2:]
         except ValueError:
             pass
 
-        return data
+        return data[:length]
 
     @staticmethod
     def write_data(image: Image, type: FileType, track: int, sector: int, data: bytes) -> Tuple[int, int]:
         """Write file data, returning next unused sector location"""
         chunk_size = File.data_bytes_per_sector(type)
 
-        for i in range(len(data) // chunk_size):
-            offset = i * chunk_size
-            chunk = data[offset:offset+chunk_size]
+        while len(data) > 0:
+            chunk = data[:chunk_size] + b'\0'*(chunk_size - len(data))
+            data = data[chunk_size:]
 
             try:
                 next_track, next_sector = Disk.next_sector(track, sector, image.spt)
@@ -223,7 +232,7 @@ class Disk:
 
             if chunk_size == 512:
                 pass
-            elif offset + chunk_size == len(data):
+            elif not data:
                 chunk += b'\0\0'
             else:
                 chunk += bytes((next_track, next_sector))

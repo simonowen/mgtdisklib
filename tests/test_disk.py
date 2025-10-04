@@ -119,16 +119,16 @@ class DiskTests(unittest.TestCase):
 
     def test_to_image_data_limit(self):
         disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
-        disk.files[0].data = bytes((76 + 80) * 10 * 510)
+        disk.files[0].data = bytes((76 + 80) * 10 * 510 - 9)
         disk.to_image()
-        disk.files[0].data += bytes(510)
+        disk.files[0].data += bytes(1)
         self.assertRaises(RuntimeError, Disk.to_image, disk)
 
     def test_to_image_data_limit_9spt(self):
         disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
-        disk.files[0].data = bytes((76 + 80) * 9 * 510)
+        disk.files[0].data = bytes((76 + 80) * 9 * 510 - 9)
         disk.to_image(spt=9)
-        disk.files[0].data += bytes(510)
+        disk.files[0].data += bytes(1)
         self.assertRaises(RuntimeError, Disk.to_image, disk, spt=9)
 
     def test_to_image_label_samdos(self):
@@ -289,21 +289,21 @@ class DiskTests(unittest.TestCase):
 
     def test_read_data(self):
         image = Image.open(f'{TESTDIR}/samdos2.mgt.gz')
-        data = Disk.read_data(image, FileType.CODE, 20, 4, 1)
-        self.assertEqual(len(data), 20*510)
-        data = Disk.read_data(image, FileType.CODE, 20, 207, 10)
+        data = Disk.read_data(image, FileType.CODE, 10000, 4, 1)
+        self.assertEqual(len(data), 10000)
+        data = Disk.read_data(image, FileType.CODE, 10000, 207, 10)
         self.assertEqual(len(data), 510)
 
     def test_read_data_contig(self):
         image = Image.open(f'{TESTDIR}/emptycpm.mgt.gz')
-        data = Disk.read_data(image, FileType.SPECIAL, 80*2*9, 4, 1)
+        data = Disk.read_data(image, FileType.SPECIAL, 80*2*9*512, 4, 1)
         self.assertEqual(len(data), 80*2*9*512)
 
     def test_write_data(self):
         image = Image.open(f'{TESTDIR}/samdos2.mgt.gz')
-        data = Disk.read_data(image, FileType.CODE, 20, 4, 1)
+        data = Disk.read_data(image, FileType.CODE, 10000, 4, 1)
         Disk.write_data(image, FileType.CODE, 4, 1, data)
-        data2 = Disk.read_data(image, FileType.CODE, 20, 4, 1)
+        data2 = Disk.read_data(image, FileType.CODE, 10000, 4, 1)
         self.assertEqual(data, data2)
         self.assertEqual(image.read_sector(4, 10)[510:], bytes((5, 1)))
         Disk.write_data, image, 207, 10, bytes(510)
@@ -319,10 +319,10 @@ class DiskTests(unittest.TestCase):
 
     def test_write_data_9spt(self):
         image = Image.open(f'{TESTDIR}/samdos2.mgt.gz')
-        data = Disk.read_data(image, FileType.CODE, 20, 4, 1)
+        data = Disk.read_data(image, FileType.CODE, 10000, 4, 1)
         image2 = MGTImage(spt=9)
         Disk.write_data(image2, FileType.CODE, 4, 1, data)
-        data2 = Disk.read_data(image2, FileType.CODE, 20, 4, 1)
+        data2 = Disk.read_data(image2, FileType.CODE, 10000, 4, 1)
         self.assertEqual(data, data2)
         self.assertEqual(image2.read_sector(4, 9)[510:], bytes((5, 1)))
         Disk.write_data, image2, 207, 9, bytes(510)
