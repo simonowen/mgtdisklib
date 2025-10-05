@@ -138,6 +138,12 @@ class Disk:
         self.delete(file.name)
         self.files.insert(len(self.files) if at_index is None else at_index, file)
 
+    def add_code_bytes(self, data: bytes, *, filename: str, at_index: Optional[int] = None) -> None:
+        """Add CODE file from bytes"""
+        file = File.from_code_bytes(data, filename=filename)
+        self.delete(file.name)
+        self.files.insert(len(self.files) if at_index is None else at_index, file)
+
     def delete(self, pattern: str) -> int:
         """Delete files matching filename pattern"""
         files = len(self.files)

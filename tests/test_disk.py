@@ -226,6 +226,23 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(len(disk.files), 3)
         self.assertEqual(disk.files[1].name, "newname")
 
+    def test_add_code_bytes(self):
+        disk = Disk()
+        self.assertEqual(len(disk.files), 0)
+        with open(f'{TESTDIR}/samdos2', 'rb') as f:
+            data = f.read()
+        disk.add_code_bytes(data, filename='samdos2')
+        self.assertEqual(len(disk.files), 1)
+        self.assertEqual(disk.files[0].name, 'samdos2')
+        self.assertEqual(disk.files[0].data, data)
+        disk.add_code_bytes(data, filename='file2')
+        self.assertEqual(len(disk.files), 2)
+        self.assertEqual(disk.files[1].name, 'file2')
+        disk.add_code_bytes(data, filename='file3', at_index=1)
+        self.assertEqual(len(disk.files), 3)
+        self.assertEqual(disk.files[1].name, 'file3')
+        self.assertEqual(disk.files[2].name, 'file2')
+
     def test_delete(self):
         disk = Disk()
         self.assertEqual(len(disk.files), 0)

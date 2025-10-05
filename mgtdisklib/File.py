@@ -150,7 +150,7 @@ class File:
 
     @staticmethod
     def from_dir(data: bytes) -> Tuple['File', int]:
-        """Create from 256-byte directory entry data"""
+        """Create from 256-byte directory entry data, returns data length"""
 
         file = File()
         file.entry = data
