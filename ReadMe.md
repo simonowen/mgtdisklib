@@ -4,8 +4,8 @@ A Python library to give file-level access to the contents of SAM Coupé and MGT
 
 NOTE: the library is currently a work in progress and the API is still subject to change.
 
-Homepage: https://github.com/simonowen/mgtdisklib  
-Module: https://pypi.org/project/mgtdisklib/
+Homepage: <https://github.com/simonowen/mgtdisklib>  
+Module: <https://pypi.org/project/mgtdisklib/>
 
 [![CI](https://github.com/simonowen/mgtdisklib/actions/workflows/main.yml/badge.svg)](https://github.com/simonowen/mgtdisklib/actions/workflows/main.yml)
 
@@ -15,7 +15,7 @@ Module: https://pypi.org/project/mgtdisklib/
 
 ### Installing the module
 
-```
+```shell
 pip -m install mgtdisklib
 ```
 
@@ -25,7 +25,7 @@ pip -m install mgtdisklib
 from mgtdisklib import Disk, Image, File
 ```
 
-### Opening a disk image:
+### Opening a disk image
 
 ```python
 disk = Disk.open('image.mgt')
@@ -45,7 +45,17 @@ disk.save('image2.mgt')
 
 Represents a logical SAM disk plus all its contents.
 
-### Class Functions
+### Disk Types
+
+`DiskType` is one of the following values:
+
+```python
+DiskType.SAMDOS         # SAMDOS (default).
+DiskType.MASTERDOS      # MasterDOS.
+DiskType.BDOS           # BDOS, used by Atom and Atom Lite.
+```
+
+### Disk Class Functions
 
 ```python
     def open(path: str) -> Disk:
@@ -54,15 +64,17 @@ Represents a logical SAM disk plus all its contents.
         """Construct a Disk object from a disk image"""
 ```
 
-### Instance Functions
+### Disk Instance Functions
 
 ```python
     def save(self, path: str, *, compressed: bool = False, spt: int = 10) -> None:
         """Save disk content to disk image"""
     def to_image(self, *, spt: int = 10) -> Image:
         """Generate MGT disk image from current contents"""
-    def add_code_file(self, path: str, *, filename: str = None, at_index: int = None) -> None:
+    def add_code_file(self, path: str, *, filename: Optional[str] = None, at_index: Optional[int] = None) -> None:
         """Add CODE file from path"""
+    def add_code_bytes(self, data: bytes, *, filename: str, at_index: Optional[int] = None) -> None:
+        """Add CODE file from bytes"""
     def delete(self, pattern: str) -> int:
         """Delete files matching filename pattern"""
     def bam(self) -> bitarray:
@@ -71,20 +83,23 @@ Represents a logical SAM disk plus all its contents.
         """Return directory listing"""
 ```
 
-### Instance Variables
+### Disk Instance Variables
 
- - `type` - detected type: `DiskType.SAMDOS` (default), `DiskType.MASTERDOS` or `DiskType.BDOS`.
- - `files` - list of `File` objects in directory order.
- - `dir_tracks` - number of directory tracks (usually 4).
- - `label` - disk volume label string, or None.
- - `serial` - MasterDOS unique disk number, or None.
- - `compressed` - _True_ if the source disk was gzipped.
+- `type` - disk type (DiskType)
+- `files` - array of `File` objects in directory order (File[])
+- `dir_tracks` - number of directory tracks (usually 4) (int)
+- `label` - disk volume label string (Optional[str])
+- `serial` - MasterDOS unique disk number (Optional[int]).
+- `compressed` - _True_ if the source disk or image was gzipped (bool)
+- `bootable` - _True_ if the disk is bootable (bool)
 
 ----
 
 ## File
 
-### Types
+Represents a single file entry on a disk.
+
+### File Types
 
 `FileType` is one of the following values:
 
@@ -128,45 +143,47 @@ TimeFormat.BDOS         # Format used by most BDOS and AL-BDOS versions.
 TimeFormat.BDOS17       # Packed format for used by BDOS 1.7 or later.
 ```
 
-### Class Functions
+### File Class Functions
+
 ```python
     def from_code_path(path: str, *, filename: str = None, start: int = 0x8000, execute: int = None) -> File:
         """Create CODE file from path"""
     def from_code_bytes(data: bytes, filename: str, *, start: int = 0x8000, execute: int = None) -> File:
         """Create CODE file from bytes"""
-    def from_dir(data: bytes) -> File:
-        """Create from 256-byte directory entry data"""
+    def from_dir(data: bytes) -> Tuple[File, int]:
+        """Create from 256-byte directory entry data, returns data length"""
     def from_path(path: str) -> File:
         """Import file entry exported using save()"""
 ```
 
-### Instance Functions
+### File Instance Functions
+
 ```python
     def save(self, path: str) -> None:
         """Export directory entry and file content for later"""
     def to_dir(self, start_track: int = 4, start_sector: int = 1, *, spt: int = 10, timefmt: TimeFormat = TimeFormat.BDOS) -> bytes:
         """Create directory entry from current file data"""
-    def is_bootable(self) -> bool:
-        """Check whether the file would be bootable in the first directory slot"""
 ```
-### Instance Variables
 
-- `type` - FileType (see above) [read-only]
-- `hidden` - True if file is hidden from SAM directory listing
-- `protected` - True is file is protected from deletion
-- `name` - file name in ASCII without trailing spaces
-- `name_raw` - original 10-byte name, which could contain special characters
-- `sectors` - count of data sectors used (from sector bitmap) [read-only]
-- `start_track` - first track of file data [read-only]
-- `start_sector` - first sector of file data [read-only]
-- `sector_map` - bitarray of sectors used by this file (starting track 4 sector 1) [read-only]
-- `start` - file start address
-- `length` - file length
-- `execute` - auto-execute line/address, or None
-- `time` - file time or None
-- `data_var` - variable name for numeric/string DATA types [read-only]
-- `entry` - original 256-byte directory entry
-- `data` - raw file data, including 9-byte header and final sector padding
+### File Instance Variables
+
+- `type` - file type (FileType)
+- `hidden` - _True_ if file is hidden from SAM directory listing (bool)
+- `protected` - _True_ is file is protected from deletion (bool)
+- `name` - file name in ASCII without trailing spaces (str)
+- `name_raw` - original 10-byte name, which could contain special characters (bytes)
+- `sectors` - count of data sectors used (from sector bitmap) (int)
+- `start_track` - first track of file data [read-only] (Optional[int])
+- `start_sector` - first sector of file data [read-only] (Optional[int])
+- `sector_map` - bitmap of sectors used by this file (starting track 4 sector 1) [read-only] (bitarray)
+- `start` - file start address (Optional[int])
+- `length` - file length (Optional[int])
+- `execute` - auto-execute line (BASIC) or address (CODE) (Optional[int])
+- `time` - file date+time (Optional[datetime])
+- `data_var` - variable name for numeric/string DATA types [read-only] (Optional[str])
+- `entry` - original 256-byte directory entry (bytes)
+- `bootable` - _True_ if bootable in the first directory slot (bool)
+- `data` - file data (bytes)
 
 Some properties are read-only, reflecting the state as read from disk. Some of
 them (including `start_track`, `start_sector` and `sector_map`) will be updated
@@ -178,7 +195,7 @@ as needed when a disk image is created containing them.
 
 Represents a disk image container in MGT/SAD/EDSK format.
 
-### Class Functions
+### Image Class Functions
 
 ```python
     def open(path):
@@ -187,7 +204,7 @@ Represents a disk image container in MGT/SAD/EDSK format.
 
 Creating an `Image()` object will give a standard 80/2/10/512 MGT disk image.
 
-### Instance Functions
+### Image Instance Functions
 
 ```python
     def save(self, path: str, *, compressed: bool = False) -> None:
@@ -207,11 +224,11 @@ The first 4 tracks of the first side contain the disk directory, and the
 remainder of the disk holds data. The second side of the disk is only used once
 the first side is full. Track 4 sector 1 holds the boot sector.
 
-### Instance Variables
+### Image Instance Variables
 
-- `path` - full path of the disk image.
-- `spt` - sectors per track, usually 10.
-- `compressed` - _True_ if the source image was gzipped.
-- `data` - raw disk data from image file.
+- `path` - full path of the disk image (Optional[str])
+- `spt` - sectors per track, usually 10 (int)
+- `compressed` - _True_ if the source image was gzipped (bool)
+- `data` - raw disk data from image file (bytearray)
 
 ----
