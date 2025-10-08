@@ -2,9 +2,7 @@ import os
 import unittest
 
 from mgtdisklib import EDSKImage, Image, IMGImage, MGTImage, SADImage
-
-TESTDIR = os.path.join(os.path.split(__file__)[0], 'data')
-TESTOUTPUTFILE = f'{TESTDIR}/__output__.mgt'
+from test_utils import TESTDIR, make_temp_file
 
 
 class ImageTests(unittest.TestCase):
@@ -133,28 +131,28 @@ class ImageTests(unittest.TestCase):
 
     def test_save_mgt_image(self):
         image = Image()
-        image.save(TESTOUTPUTFILE)
-        self.assertEqual(os.path.getsize(TESTOUTPUTFILE), 819200)
-        image = Image.open(TESTOUTPUTFILE)
-        os.remove(TESTOUTPUTFILE)
+        with make_temp_file('.mgt') as temp_path:
+            image.save(temp_path)
+            self.assertEqual(os.path.getsize(temp_path), 819200)
+            image = Image.open(temp_path)
         self.assertFalse(image.compressed)
         self.assertEqual(image.spt, 10)
 
     def test_save_mgt_gzip_image(self):
         image = Image()
-        image.save(TESTOUTPUTFILE, compressed=True)
-        self.assertLess(os.path.getsize(TESTOUTPUTFILE), 10000)
-        image = Image.open(TESTOUTPUTFILE)
-        os.remove(TESTOUTPUTFILE)
+        with make_temp_file('.mgt.gz') as temp_path:
+            image.save(temp_path, compressed=True)
+            self.assertLess(os.path.getsize(temp_path), 10000)
+            image = Image.open(temp_path)
         self.assertTrue(image.compressed)
         self.assertEqual(image.spt, 10)
 
     def test_save_mgt_image9(self):
         image = Image(spt=9)
-        image.save(TESTOUTPUTFILE)
-        self.assertEqual(os.path.getsize(TESTOUTPUTFILE), 737280)
-        image = Image.open(TESTOUTPUTFILE)
-        os.remove(TESTOUTPUTFILE)
+        with make_temp_file('.img') as temp_path:
+            image.save(temp_path)
+            self.assertEqual(os.path.getsize(temp_path), 737280)
+            image = Image.open(temp_path)
         self.assertFalse(image.compressed)
         self.assertEqual(image.spt, 9)
 

@@ -3,9 +3,7 @@ import random
 import unittest
 
 from mgtdisklib import Disk, DiskType, FileType, Image, MGTImage
-
-TESTDIR = os.path.join(os.path.split(__file__)[0], 'data')
-TESTOUTPUTFILE = f'{TESTDIR}/__output__.mgt'
+from test_utils import TESTDIR, make_temp_file
 
 
 class DiskTests(unittest.TestCase):
@@ -57,20 +55,20 @@ class DiskTests(unittest.TestCase):
 
     def test_save(self):
         disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
-        disk.save(TESTOUTPUTFILE)
-        image = Image.open(TESTOUTPUTFILE)
-        self.assertEqual(os.path.getsize(TESTOUTPUTFILE), 819200)
-        self.assertEqual(len(image.data), 819200)
-        self.assertRaises(ValueError, Disk.save, disk, TESTOUTPUTFILE, spt=0)
-        os.remove(TESTOUTPUTFILE)
+        with make_temp_file('.mgt') as temp_path:
+            disk.save(temp_path)
+            image = Image.open(temp_path)
+            self.assertEqual(os.path.getsize(temp_path), 819200)
+            self.assertEqual(len(image.data), 819200)
+            self.assertRaises(ValueError, Disk.save, disk, temp_path, spt=0)
 
     def test_save_9spt(self):
         disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
-        disk.save(TESTOUTPUTFILE, spt=9)
-        image = Image.open(TESTOUTPUTFILE)
-        self.assertEqual(os.path.getsize(TESTOUTPUTFILE), 737280)
-        self.assertEqual(len(image.data), 737280)
-        os.remove(TESTOUTPUTFILE)
+        with make_temp_file('.mgt') as temp_path:
+            disk.save(temp_path, spt=9)
+            image = Image.open(temp_path)
+            self.assertEqual(os.path.getsize(temp_path), 737280)
+            self.assertEqual(len(image.data), 737280)
 
     def test_to_image(self):
         disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')

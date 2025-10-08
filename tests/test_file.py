@@ -1,13 +1,10 @@
-import os
 import unittest
 from datetime import datetime
 
 from bitarray import bitarray
 
 from mgtdisklib import Disk, File, FileType, TimeFormat
-
-TESTDIR = os.path.join(os.path.split(__file__)[0], 'data')
-TESTOUTPUTFILE = f'{TESTDIR}/__output__.file'
+from test_utils import TESTDIR, make_temp_file
 
 
 class FileTests(unittest.TestCase):
@@ -204,14 +201,12 @@ class FileTests(unittest.TestCase):
 
     def test_save(self):
         file = File.from_code_path(f'{TESTDIR}/samdos2', start=491529)
-        file.save(TESTOUTPUTFILE)
-
-        with open(f'{TESTDIR}/samdos2.file', 'rb') as f:
-            data_golden = f.read()
-        with open(TESTOUTPUTFILE, 'rb') as f:
-            data = f.read()
-        os.remove(TESTOUTPUTFILE)
-
+        with make_temp_file('.file') as temp_path:
+            file.save(temp_path)
+            with open(f'{TESTDIR}/samdos2.file', 'rb') as f:
+                data_golden = f.read()
+            with open(temp_path, 'rb') as f:
+                data = f.read()
         self.assertEqual(data, data_golden)
 
     def test_to_dir(self):
