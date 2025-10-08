@@ -1086,7 +1086,7 @@ class FileTests(unittest.TestCase):
         self.assertEqual(File.contig_sector_map(8, 4, 7)[:18], bitarray('000000111111110000'))
         self.assertEqual(File.contig_sector_map(8, 4, 8)[:18], bitarray('000000011111111000'))
         self.assertEqual(File.contig_sector_map(8, 4, 9)[:18], bitarray('000000001111111100'))
-        self.assertEqual(File.contig_sector_map(8, 4,10)[:18], bitarray('000000000111111110'))
+        self.assertEqual(File.contig_sector_map(8, 4, 10)[:18], bitarray('000000000111111110'))
 
     def test_unpack_time(self):
         self.assertIsNone(File.unpack_time(b'\x00\x00\x00\x00\x00'))

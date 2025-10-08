@@ -49,12 +49,35 @@ class FileType(IntEnum):
 
 
 TYPE_NAMES = {
-    1: 'ZX BASIC', 2: 'ZX DATA ()', 3: 'ZX DATA $()', 4: 'ZX CODE', 5: 'ZX SNP 48K',
-    6: 'ZX MDRV', 7: 'ZX SCREEN$', 8: 'SPECIAL', 9: 'ZX SNP 128K', 10: 'OPENTYPE',
-    11: 'ZX EXECUTE', 12: 'UNIDOS DIR', 13: 'UNIDOS CREATE', 16: 'BASIC', 17: 'DATA ()',
-    18: 'DATA $', 19: 'CODE', 20: 'SCREEN$', 21: '<DIR>', 22: 'DRIVER APP',
-    23: 'DRIVER BOOT', 24: 'EDOS NOMEN', 25: 'EDOS SYSTEM', 26: 'EDOS OVERLAY',
-    28: 'HDOS DOS', 29: 'HDOS DIR', 30: 'HDOS DISK', 31: 'HDOS TEMP'
+    FileType.NONE: '<none>',
+    FileType.ZX_BASIC: 'ZX BASIC',
+    FileType.ZX_DATA: 'ZX DATA ()',
+    FileType.ZX_DATA_STR: 'ZX DATA $()',
+    FileType.ZX_CODE: 'ZX CODE',
+    FileType.ZX_SNP_48K: 'ZX SNP 48K',
+    FileType.ZX_MDRV: 'ZX MDRV',
+    FileType.ZX_SCREEN: 'ZX SCREEN$',
+    FileType.SPECIAL: 'SPECIAL',
+    FileType.ZX_SNP_128K: 'ZX SNP 128K',
+    FileType.OPENTYPE: 'OPENTYPE',
+    FileType.ZX_EXECUTE: 'ZX EXECUTE',
+    FileType.UNIDOS_DIR: 'UNIDOS DIR',
+    FileType.UNIDOS_CREATE: 'UNIDOS CREATE',
+    FileType.BASIC: 'BASIC',
+    FileType.DATA: 'DATA ()',
+    FileType.DATA_STR: 'DATA $',
+    FileType.CODE: 'CODE',
+    FileType.SCREEN: 'SCREEN$',
+    FileType.DIR: '<DIR>',
+    FileType.DRIVER_APP: 'DRIVER APP',
+    FileType.DRIVER_BOOT: 'DRIVER BOOT',
+    FileType.EDOS_NOMEN: 'EDOS NOMEN',
+    FileType.EDOS_SYSTEM: 'EDOS SYSTEM',
+    FileType.EDOS_OVERLAY: 'EDOS OVERLAY',
+    FileType.HDOS_DOS: 'HDOS DOS',
+    FileType.HDOS_DIR: 'HDOS DIR',
+    FileType.HDOS_DISK: 'HDOS DISK',
+    FileType.HDOS_TEMP: 'HDOS TEMP',
 }
 
 
@@ -116,7 +139,8 @@ class File:
         return str
 
     @staticmethod
-    def from_code_path(path: str, *, filename: Optional[str] = None, start: int = 0x8000, execute: Optional[int] = None) -> 'File':
+    def from_code_path(path: str, *, filename: Optional[str] = None, start: int = 0x8000,
+                       execute: Optional[int] = None) -> 'File':
         """Create CODE file from path"""
 
         with open(path, 'rb') as f:
@@ -126,7 +150,8 @@ class File:
         return File.from_code_bytes(data, filename, start=start, execute=execute)
 
     @staticmethod
-    def from_code_bytes(data: bytes, filename: str, *, start: int = 0x8000, execute: Optional[int] = None) -> 'File':
+    def from_code_bytes(data: bytes, filename: str, *, start: int = 0x8000,
+                        execute: Optional[int] = None) -> 'File':
         """Create CODE file from bytes"""
 
         file, _ = File.from_dir(bytes(256))
@@ -272,7 +297,8 @@ class File:
             if self.data:
                 f.write(self.data)
 
-    def to_dir(self, start_track: int = 4, start_sector: int = 1, *, spt: int = 10, timefmt: TimeFormat = TimeFormat.BDOS) -> bytes:
+    def to_dir(self, start_track: int = 4, start_sector: int = 1, *, spt: int = 10,
+               timefmt: TimeFormat = TimeFormat.BDOS) -> bytes:
         """Create directory entry from current file data"""
 
         if self.type == FileType.NONE:
@@ -398,7 +424,8 @@ class File:
         return 512 if File.is_contig_data_type(type) else 510
 
     @staticmethod
-    def contig_sector_map(sectors: int, start_track: Optional[int], start_sector: Optional[int], spt: int = 10) -> bitarray:
+    def contig_sector_map(sectors: int, start_track: Optional[int], start_sector: Optional[int],
+                          spt: int = 10) -> bitarray:
         """Generate sector map of contiguous sectors from a given position"""
         if not start_track or not start_sector:
             raise ValueError('missing start track and sector')
@@ -433,7 +460,10 @@ class File:
             return None
         elif data[1] & 0x80:  # BDOS >= 1.7a format?
             year, month, day = data[2], (data[1] & 0x78) >> 3, data[0]
-            hours, mins, secs = (data[3] & 0xf8) >> 3, ((data[4] & 0xe0) >> 2) | (data[3] & 0x07), (data[4] & 0x1f) << 1
+            hours, mins, secs = (
+                (data[3] & 0xf8) >> 3,
+                ((data[4] & 0xe0) >> 2) | (data[3] & 0x07),
+                (data[4] & 0x1f) << 1)
         else:
             year, month, day = data[2], data[1], data[0]
             hours, mins, secs = data[3], data[4], 0
