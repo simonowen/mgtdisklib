@@ -102,6 +102,7 @@ class File:
         self.sector_map: bitarray = bitarray(endian='little')
         self.start: Optional[int] = None
         self.execute: Optional[int] = None
+        self.basic_length: Optional[int] = None
         self.time: Optional[datetime] = None
         self.dir: Optional[int] = None
         self.data_var: Optional[str] = None
@@ -193,43 +194,53 @@ class File:
         num_sectors = file.sector_map.count(1)  # trust bitmap over stored sector count [see MNEMOdemo1]
         length = 0
 
+        # zx_tape_id = data[211]
+        zx_length = (data[210] * 0x10000) + File.le_word(data[212:212+2])
         zx_start = File.le_word(data[214:214+2])
-        zx_length = File.le_word(data[212:212+2])
-        zx_execute = File.le_word(data[218:218+2])
+        zx_basic_length = File.le_word(data[216:216+2])
+        zx_autorun = None if data[219] == 0xff else File.le_word(data[218:218+2])
+        zx_execute = None if data[219] == 0x00 else File.le_word(data[218:218+2])
         zx_datavar = chr(ord('a') + (data[216] & 0x3f) - 1)
 
         sam_start = File.triple_to_addr(data[236:236+3])
         sam_length = File.triple_to_len(data[239:239+3])
         sam_execute = File.triple_to_exec(data[242:242+3])
+        sam_autorun = File.triple_to_line(data[242:242+3])
         sam_datavar = data[222:222+(data[221] & 0xf)].decode('ascii', errors='replace')
 
         if file.type == FileType.ZX_BASIC:
-            file.start = zx_start
             length = zx_length
-            file.execute = None if data[219] == 0xff else zx_execute
+            file.start = zx_start
+            file.basic_length = zx_basic_length
+            file.execute = zx_autorun
         elif file.type == FileType.ZX_DATA:
-            file.start = zx_start
             length = zx_length
+            file.start = zx_start
             file.data_var = zx_datavar
         elif file.type == FileType.ZX_DATA_STR:
-            file.start = zx_start
             length = zx_length
+            file.start = zx_start
             file.data_var = zx_datavar + '$'
         elif file.type == FileType.ZX_CODE:
-            file.start = zx_start
             length = zx_length
-            file.execute = None if data[219] == 0x00 else zx_execute
+            file.start = zx_start
+            file.execute = zx_execute
         elif file.type == FileType.ZX_SNP_48K:
-            length = 0xc000
+            length = zx_length or (0x4000 * 3)  # only Uni-DOS sets this
+            # TODO: Z80 regs
+        #elif file.type == FileType.ZX_MDRV:
+        #    pass
         elif file.type == FileType.ZX_SCREEN:
             file.start = zx_start
             length = zx_length
         elif file.type == FileType.SPECIAL:
             length = num_sectors * 512
+            #file.header = data[211:256] # all custom?
         elif file.type == FileType.ZX_SNP_128K:
-            length = 0x20001
+            length = zx_length or (1 + (0x4000 * 8))  # only Uni-DOS sets this
+            # TODO: Z80 regs
         elif file.type == FileType.OPENTYPE:
-            length = data[210] * 0x10000 + zx_length
+            length = zx_length
         elif file.type == FileType.ZX_EXECUTE:
             length = zx_length or (512 - 2)  # only Uni-DOS sets this
             file.start = 0x1bd6
@@ -241,7 +252,7 @@ class File:
         elif file.type == FileType.BASIC:
             file.start = sam_start
             length = sam_length
-            file.execute = File.triple_to_line(data[242:242+3])
+            file.execute = sam_autorun
         elif file.type == FileType.DATA:
             file.start = sam_start
             length = sam_length
@@ -267,7 +278,6 @@ class File:
 
         if file.type == FileType.DIR:
             file.dir = data[250]
-            file.start_track = file.start_sector = None
         elif File.is_sam_file_type(file.type) and data[254] not in (0x00, 0xff):
             file.dir = data[254]
 
