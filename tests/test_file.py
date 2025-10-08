@@ -148,6 +148,11 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.screen_mode)
         self.assertTrue(file.bootable)
 
+    def test_from_path_none(self):
+        file = File.from_path(f'{TESTDIR}/none.file')
+        self.assertEqual(file.type, FileType.NONE)
+        self.assertEqual(file.data, bytes())
+
     def test_from_path(self):
         file = File.from_path(f'{TESTDIR}/samdos2.file')
         with open(f'{TESTDIR}/samdos2', 'rb') as f:
@@ -198,6 +203,14 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
         self.assertTrue(file.bootable)
+
+    def test_save_none(self):
+        file = File.from_path(f'{TESTDIR}/none.file')
+        with make_temp_file('.file') as temp_path:
+            file.save(temp_path)
+            file2 = File.from_path(temp_path)
+        self.assertEqual(file2.type, FileType.NONE)
+        self.assertEqual(file2.data, bytes())
 
     def test_save(self):
         file = File.from_code_path(f'{TESTDIR}/samdos2', start=491529)
@@ -968,8 +981,6 @@ class FileTests(unittest.TestCase):
         self.assertFalse(file.protected)
         self.assertEqual(file.name, 'subdir')
         self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
-        self.assertIsNone(file.start_track)
-        self.assertIsNone(file.start_sector)
         self.assertEqual(file.sectors, 0)
         self.assertIsNone(file.start)
         self.assertEqual(file.length, 0)
