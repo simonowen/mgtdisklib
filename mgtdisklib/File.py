@@ -231,7 +231,8 @@ class File:
         elif file.type == FileType.OPENTYPE:
             length = data[210] * 0x10000 + zx_length
         elif file.type == FileType.ZX_EXECUTE:
-            length = 510
+            length = zx_length or (512 - 2)  # only Uni-DOS sets this
+            file.start = 0x1bd6
         elif file.type == FileType.UNIDOS_DIR:
             # Uni-DOS over-allocates, should be entries*256 rounded up to 512?
             length = num_sectors * 512

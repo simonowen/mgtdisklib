@@ -710,7 +710,7 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.data[:4], b'\x3e\x02\xd3\xfe')
         self.assertEqual(file.data[4:file.length-1], bytes(file.length-5))
         self.assertEqual(file.data[file.length-1], 0xc9)
-        self.assertIsNone(file.start)
+        self.assertEqual(file.start, 0x1bd6)
         self.assertIsNone(file.execute)
         self.assertIsNone(file.dir)
         self.assertIsNone(file.data_var)
