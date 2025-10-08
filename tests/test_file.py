@@ -718,6 +718,50 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.screen_mode)
         self.assertFalse(file.bootable)
 
+    def test_type_zx_unidos_dir(self):
+        file = Disk.open(f'{TESTDIR}/unidos_dir.mgt.gz').files[0]
+        self.assertEqual(str(file), 'subdir       24  UNIDOS DIR')
+        self.assertEqual(file.type, FileType.UNIDOS_DIR)
+        self.assertFalse(file.hidden)
+        self.assertTrue(file.protected)
+        self.assertEqual(file.name, 'subdir')
+        self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
+        self.assertEqual(file.sectors, 24)
+        self.assertEqual(file.length, file.sectors * 512)
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.header, b'')
+        self.assertEqual(file.entry[213], 20)  # dir entries
+        self.assertEqual(file.data[:5], b'\x07file')
+        self.assertEqual(file.data[20*256-2:20*256], b'\xff\xff')  # dir end
+        self.assertIsNone(file.start)
+        self.assertIsNone(file.execute)
+        self.assertIsNone(file.dir)
+        self.assertIsNone(file.data_var)
+        self.assertIsNone(file.time)
+        self.assertIsNone(file.screen_mode)
+        self.assertFalse(file.bootable)
+
+    def test_type_zx_unidos_create(self):
+        file = Disk.open(f'{TESTDIR}/unidos_create.mgt.gz').files[0]
+        self.assertEqual(str(file), 'ext_code      1  UNIDOS CREATE')
+        self.assertEqual(file.type, FileType.UNIDOS_CREATE)
+        self.assertFalse(file.hidden)
+        self.assertTrue(file.protected)
+        self.assertEqual(file.name, 'ext_code')
+        self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
+        self.assertEqual(file.sectors, 1)
+        self.assertEqual(file.length, 512-2)
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.header, b'')
+        self.assertEqual(file.data[:5], b'\x03\xd05\x00\xe6')
+        self.assertIsNone(file.start)
+        self.assertIsNone(file.execute)
+        self.assertIsNone(file.dir)
+        self.assertIsNone(file.data_var)
+        self.assertIsNone(file.time)
+        self.assertIsNone(file.screen_mode)
+        self.assertFalse(file.bootable)
+
     def test_type_basic(self):
         file = Disk.open(f'{TESTDIR}/basic_vars.mgt.gz').files[0]
         self.assertEqual(str(file), 'basic         2  BASIC')

@@ -232,6 +232,11 @@ class File:
             length = data[210] * 0x10000 + zx_length
         elif file.type == FileType.ZX_EXECUTE:
             length = 510
+        elif file.type == FileType.UNIDOS_DIR:
+            # Uni-DOS over-allocates, should be entries*256 rounded up to 512?
+            length = num_sectors * 512
+        elif file.type == FileType.UNIDOS_CREATE:
+            length = num_sectors * 512
         elif file.type == FileType.BASIC:
             file.start = sam_start
             length = sam_length
