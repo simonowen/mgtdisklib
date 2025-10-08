@@ -327,7 +327,7 @@ class DiskTests(unittest.TestCase):
         self.assertRaises(RuntimeError, Disk.write_data, image, FileType.CODE, 207, 10, bytes(2 * 510))
 
     def test_write_data_contig(self):
-        image = Image()
+        image = MGTImage()
         data = bytes([random.randrange(0, 0x100) for _ in range(80*2*9*512)])
         Disk.write_data(image, FileType.SPECIAL, 4, 1, data)
         data2 = b''.join([image.read_sector((t % 80) + (128 if t >= 80 else 0), s)

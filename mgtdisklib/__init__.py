@@ -1,6 +1,6 @@
 from .Disk import Disk, DiskType
 from .File import File, FileType, TimeFormat
-from .Image import EDSKImage, Image, MGTImage, SADImage
+from .Image import EDSKImage, Image, IMGImage, MGTImage, SADImage
 
 __all__ = [
     "Disk",
@@ -10,6 +10,7 @@ __all__ = [
     "TimeFormat",
     "EDSKImage",
     "Image",
+    "IMGImage",
     "MGTImage",
     "SADImage",
 ]

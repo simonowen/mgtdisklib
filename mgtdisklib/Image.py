@@ -1,4 +1,4 @@
-# Image wrapper for disk image containers (MGT/SAD/EDSK).
+# Image wrapper for disk image containers (MGT/IMG/SAD/EDSK).
 #
 # Part of https://github.com/simonowen/mgtdisklib
 #
@@ -17,6 +17,16 @@ class Image:
         self.data: bytearray = bytearray(80 * 2 * self.spt * 512)
 
     @staticmethod
+    def is_img_image(data: bytes) -> bool:
+        """Attempt to detect a DISCiPLE .img format disk image"""
+        if len(data) == 819200 and data[0:2] != b'\x00\x00':
+            if data[0x51fe:0x5200] == b'\x04\x02':
+                return True  # sector chain found
+            elif data[0xd3:0xd3+9] != bytes(9) and data[0xd3:0xd3+9] == data[0x5000:0x5009]:
+                return True  # file header matches
+        return False
+
+    @staticmethod
     def open(path: str) -> 'Image':
         """Create Image object from disk image file"""
         with open(path, 'rb') as f:
@@ -29,7 +39,10 @@ class Image:
                 compressed = False
 
         image: Optional[Image] = None
-        if len(data) == 819200 or len(data) == 737280:
+        if Image.is_img_image(data):
+            image = IMGImage()
+            image.spt = 10
+        elif len(data) == 819200 or len(data) == 737280:
             image = MGTImage()
             image.spt = len(data) // (80 * 2 * 512)
         elif len(data) == 819222 or len(data) == 737302:
@@ -71,7 +84,13 @@ class Image:
         self.data[offset:offset+512] = data
 
     def sector_offset(self, track: int, sector: int) -> int:
-        """Calculate sector data offset in image data"""
+        """Calculate sector data offset in disk image"""
+        raise NotImplementedError('only available in Image subclasses')
+
+
+class MGTImage(Image):
+    def sector_offset(self, track: int, sector: int) -> int:
+        """Calculate sector data offset in MGT image"""
 
         if track < 0 or (track & 0x7f) >= 80 or sector < 1 or sector > self.spt:
             raise ValueError(f'invalid sector location: track {track} sector {sector}')
@@ -79,8 +98,14 @@ class Image:
         return ((track & 0x7f) * self.spt * 2 + (track >> 7) * self.spt + (sector - 1)) * 512
 
 
-class MGTImage(Image):
-    pass
+class IMGImage(Image):
+    def sector_offset(self, track: int, sector: int) -> int:
+        """Calculate sector data offset in IMG image"""
+
+        if track < 0 or (track & 0x7f) >= 80 or sector < 1 or sector > self.spt:
+            raise ValueError(f'invalid sector location track {track} sector {sector}')
+
+        return (((track >> 7) * 80 + (track & 0x7f)) * self.spt + (sector - 1)) * 512
 
 
 class SADImage(Image):
