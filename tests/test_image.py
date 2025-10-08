@@ -83,6 +83,30 @@ class ImageTests(unittest.TestCase):
         self.assertTrue(image.compressed)
         self.assertEqual(len(image.data), 819200)
 
+    def test_open_mgt_zip_image(self):
+        image = Image.open(f'{TESTDIR}/image.mgt.zip')
+        self.assertIsInstance(image, MGTImage)
+        self.assertEqual(image.spt, 10)
+        self.assertFalse(image.compressed)
+        self.assertEqual(len(image.data), 819200)
+
+    def test_open_mgt_gzip_zip_image(self):
+        image = Image.open(f'{TESTDIR}/image.mgt.gz.zip')
+        self.assertIsInstance(image, MGTImage)
+        self.assertEqual(image.spt, 10)
+        self.assertTrue(image.compressed)
+        self.assertEqual(len(image.data), 819200)
+
+    def test_open_mgt_upper_zip_image(self):
+        image = Image.open(f'{TESTDIR}/image_upper.zip')
+        self.assertIsInstance(image, MGTImage)
+        self.assertEqual(image.spt, 10)
+        self.assertFalse(image.compressed)
+        self.assertEqual(len(image.data), 819200)
+
+    def test_open_zip_multiple_images(self):
+        self.assertRaises(RuntimeError, Image.open, f'{TESTDIR}/image_multiple.zip')
+
     def test_open_mgt_image9(self):
         image = Image.open(f'{TESTDIR}/image9.mgt')
         self.assertIsInstance(image, MGTImage)

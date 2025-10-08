@@ -5,7 +5,9 @@
 # SPDX-License-Identifier: MIT
 
 import gzip
+import io
 import os
+import zipfile
 from typing import Optional
 
 
@@ -29,14 +31,24 @@ class Image:
     @staticmethod
     def open(path: str) -> 'Image':
         """Create Image object from disk image file"""
-        with open(path, 'rb') as f:
-            data = bytearray(f.read())
-            if data[:2] == b'\x1f\x8b':
-                with gzip.open(path, 'rb') as f2:
-                    data = bytearray(f2.read())
-                    compressed = True
-            else:
-                compressed = False
+
+        if not zipfile.is_zipfile(path):
+            with open(path, 'rb') as f:
+                data = f.read()
+        else:
+            with zipfile.ZipFile(path, 'r') as z:
+                file_exts = ('.mgt', '.dsk', '.img', '.sad')
+                files = [name for name in z.namelist() if any(ext in name.lower() for ext in file_exts)]
+                if len(files) != 1:
+                    raise RuntimeError(f'{path} must contain a single disk image')
+                with z.open(files[0], 'r') as f:
+                    data = f.read()
+
+        compressed: bool = False
+        if data[:2] == b'\x1f\x8b':
+            with gzip.GzipFile(fileobj=io.BytesIO(data)) as gf:
+                data = gf.read()
+                compressed = True
 
         image: Optional[Image] = None
         if Image.is_img_image(data):
@@ -55,7 +67,7 @@ class Image:
             raise RuntimeError(f'{path} is not a supported disk image')
 
         image.path = os.path.abspath(path)
-        image.data = data
+        image.data = bytearray(data)
         image.compressed = compressed
         return image
 
