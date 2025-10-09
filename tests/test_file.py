@@ -229,12 +229,43 @@ class FileTests(unittest.TestCase):
     def test_to_dir_zx_basic(self):
         file = File()
         file.type = FileType.ZX_BASIC
+        file.data = bytes(0x1234)
+        file.start = 0x5678
+        file.basic_length = 0x9abc
         file.execute = None
         dir = file.to_dir()
+        self.assertEqual(dir[211], File.tape_id_from_type(file.type))
+        self.assertEqual(dir[212:212+2], File.word_to_le(file.length))
+        self.assertEqual(dir[214:214+2], File.word_to_le(file.start))
+        self.assertEqual(dir[216:216+2], File.word_to_le(file.basic_length))
         self.assertEqual(dir[218:218+2], File.word_to_le(0xffff))
-        file.execute = 0x1234
+        file.execute = 0x0123
         dir = file.to_dir()
         self.assertEqual(dir[218:218+2], File.word_to_le(file.execute))
+
+    def test_to_dir_zx_data(self):
+        file = File()
+        file.type = FileType.ZX_DATA
+        file.data = bytes(0x1234)
+        file.start = 0x5678
+        file.data_var = 'x'
+        dir = file.to_dir()
+        self.assertEqual(dir[211], File.tape_id_from_type(file.type))
+        self.assertEqual(dir[212:212+2], File.word_to_le(file.length))
+        self.assertEqual(dir[214:214+2], File.word_to_le(file.start))
+        self.assertEqual(dir[216], ord(file.data_var) - ord('a') + 1)
+
+    def test_to_dir_zx_data_str(self):
+        file = File()
+        file.type = FileType.ZX_DATA_STR
+        file.data = bytes(0x1234)
+        file.start = 0x5678
+        file.data_var = 'x'
+        dir = file.to_dir()
+        self.assertEqual(dir[211], File.tape_id_from_type(file.type))
+        self.assertEqual(dir[212:212+2], File.word_to_le(file.length))
+        self.assertEqual(dir[214:214+2], File.word_to_le(file.start))
+        self.assertEqual(dir[216], ord(file.data_var) - ord('a') + 1)
 
     def test_to_dir_zx_code(self):
         file = File()
@@ -250,27 +281,101 @@ class FileTests(unittest.TestCase):
         dir = file.to_dir()
         self.assertEqual(dir[218:218+2], File.word_to_le(0x0000))
 
+    def test_to_dir_zx_snp_48k(self):
+        file = File()
+        file.type = FileType.ZX_SNP_48K
+        file.data = bytes(0x1234)  # length ignored
+        dir = file.to_dir()
+        self.assertEqual(dir[211], File.tape_id_from_type(file.type))
+        self.assertEqual(dir[212:212+2], File.word_to_le(0xc000))  # fixed length
+
+    def test_to_dir_mdrv(self):
+        file = File()
+        file.type = FileType.ZX_MDRV
+        dir = file.to_dir()
+        self.assertEqual(dir[210:256], file.entry[210:256])
+
+    def test_to_dir_zx_screen(self):
+        file = File()
+        file.type = FileType.ZX_SCREEN
+        file.data = bytes(0x1234)  # length ignored
+        file.start = 0x5678  # address ignored
+        dir = file.to_dir()
+        self.assertEqual(dir[211], File.tape_id_from_type(file.type))
+        self.assertEqual(dir[212:212+2], File.word_to_le(0x1b00))
+        self.assertEqual(dir[214:214+2], File.word_to_le(0x4000))
+
+    def test_to_dir_special(self):
+        file = File()
+        file.type = FileType.SPECIAL
+        dir = file.to_dir()
+        self.assertEqual(dir[210:256], file.entry[210:256])
+
+    def test_to_dir_zx_snp_128k(self):
+        file = File()
+        file.type = FileType.ZX_SNP_128K
+        file.data = bytes(0x1234)  # length ignored
+        dir = file.to_dir()
+        self.assertEqual(dir[210], 0x20001 >> 16)  # fixed length high byte
+        self.assertEqual(dir[211], 0x10)  # TODO: check
+        self.assertEqual(dir[212:212+2], File.word_to_le(0x20001 & 0xffff))  # fixed length
+
     def test_to_dir_opentype(self):
         file = File()
         file.type = FileType.OPENTYPE
-        file.data = bytes()
+        file.data = bytes(0x1234)
         dir = file.to_dir()
-        self.assertEqual(dir[210], 0x00)
-        self.assertEqual(dir[212:212+2], File.word_to_le(0x0000))
+        self.assertEqual(dir[210], file.length >> 16)
+        self.assertEqual(dir[212:212+2], File.word_to_le(file.length & 0xffff))
         file.data = bytes(0x123456)
         dir = file.to_dir()
         self.assertEqual(dir[210], file.length >> 16)
         self.assertEqual(dir[212:212+2], File.word_to_le(file.length & 0xffff))
 
+    def test_to_dir_zx_execute(self):
+        file = File()
+        file.type = FileType.ZX_EXECUTE
+        file.data = bytes(0x1234)  # length ignored
+        dir = file.to_dir()
+        self.assertEqual(dir[212:212+2], File.word_to_le(510))
+
     def test_to_dir_basic(self):
         file = File()
         file.type = FileType.BASIC
+        file.start = 0x123456
+        file.data = bytes(0x234567)
         file.execute = None
         dir = file.to_dir()
+        self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
+        self.assertEqual(dir[239:239+3], File.len_to_triple(file.length))
         self.assertEqual(dir[242:242+3], File.line_to_triple(file.execute))
-        file.execute = 0xfeff
+        file.execute = 0x4321
         dir = file.to_dir()
         self.assertEqual(dir[242:242+3], File.line_to_triple(file.execute))
+
+    def test_to_dir_data(self):
+        file = File()
+        file.type = FileType.DATA
+        file.start = 0x123456
+        file.data = bytes(0x234567)
+        file.data_var = 'abcde'
+        dir = file.to_dir()
+        self.assertEqual(dir[221] & 0xf, len(file.data_var))
+        self.assertEqual(dir[222:222+len(file.data_var)], bytes(file.data_var, 'ascii'))
+        self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
+        self.assertEqual(dir[239:239+3], File.len_to_triple(file.length))
+
+    def test_to_dir_data_str(self):
+        file = File()
+        file.type = FileType.DATA_STR
+        file.start = 0x123456
+        file.data = bytes(0x234567)
+        file.data_var = 'zyx'
+        dir = file.to_dir()
+        self.assertEqual(dir[221] & 0xf, len(file.data_var))
+        self.assertEqual(dir[222:222+len(file.data_var)], bytes(file.data_var, 'ascii'))
+        self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
+        self.assertEqual(dir[239:239+3], File.len_to_triple(file.length))
 
     def test_to_dir_code(self):
         file = File()
@@ -278,13 +383,62 @@ class FileTests(unittest.TestCase):
         file.start = 0x123456
         file.data = bytes(0x234567)
         file.execute = None
+        file.dir = 123
         dir = file.to_dir()
         self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
         self.assertEqual(dir[239:239+3], File.len_to_triple(file.length))
         self.assertEqual(dir[242:242+3], File.exec_to_triple(file.execute))
+        self.assertEqual(dir[254], 123)
         file.execute = 0x12345
+        file.dir = None
         dir = file.to_dir()
         self.assertEqual(dir[242:242+3], File.exec_to_triple(file.execute))
+        self.assertEqual(dir[254], 0)
+
+    def test_to_dir_screen(self):
+        file = File()
+        file.type = FileType.SCREEN
+        file.screen_mode = 1
+        file.start = 0x123456
+        file.data = bytes(0x234567)
+        dir = file.to_dir()
+        self.assertEqual(dir[221], file.screen_mode - 1)
+        self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
+        self.assertEqual(dir[239:239+3], File.len_to_triple(file.length))
+        file.screen_mode = 2
+        dir = file.to_dir()
+        self.assertEqual(dir[221], file.screen_mode - 1)
+        file.screen_mode = 3
+        dir = file.to_dir()
+        self.assertEqual(dir[221], file.screen_mode - 1)
+        file.screen_mode = 4
+        dir = file.to_dir()
+        self.assertEqual(dir[221], file.screen_mode - 1)
+
+    def test_to_dir_dir(self):
+        file = File()
+        file.type = FileType.DIR
+        file.dir = 42
+        dir = file.to_dir()
+        self.assertEqual(dir[250], file.dir)
+
+    def test_to_dir_driver_app(self):
+        file = File()
+        file.type = FileType.DRIVER_APP
+        file.start = 0x123456
+        file.data = bytes(0x234567)
+        dir = file.to_dir()
+        self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
+        self.assertEqual(dir[239:239+3], File.len_to_triple(file.length))
+
+    def test_to_dir_driver_boot(self):
+        file = File()
+        file.type = FileType.DRIVER_BOOT
+        file.start = 0x123456
+        file.data = bytes(0x234567)
+        dir = file.to_dir()
+        self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
+        self.assertEqual(dir[239:239+3], File.len_to_triple(file.length))
 
     def test_unpack_triple(self):
         self.assertEqual(File.unpack_triple(b'\x00\x00\x00'), (0x00, 0x0000))
@@ -513,7 +667,7 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
         self.assertEqual(file.header, b'\x02\x08\x00\x08\x5d\xd8\xff\xff\xff')
         self.assertEqual(file.data[:8], b'\x01\x05\x00abcde')
-        self.assertEqual(file.data_var, 'x$')
+        self.assertEqual(file.data_var, 'x')
         self.assertIsNone(file.execute)
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
@@ -534,7 +688,7 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
         self.assertEqual(file.header, b'\x02\x37\x00\x32\x5d\xd8\xff\xff\xff')
         self.assertEqual(file.data[:25], b'\x02\x05\x00\x0a\x00hello     world     ')
-        self.assertEqual(file.data_var, 'x$')
+        self.assertEqual(file.data_var, 'x')
         self.assertIsNone(file.execute)
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
@@ -840,7 +994,7 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
         self.assertEqual(file.header, b'\x12\x45\x00\x9c\x9f\xff\xff\x00\x00')
         self.assertEqual(file.data[1:1+4], b'abc$')
-        self.assertEqual(file.data_var, 'abc$')
+        self.assertEqual(file.data_var, 'abc')
         self.assertIsNone(file.execute)
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
@@ -861,7 +1015,7 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
         self.assertEqual(file.header, b'\x12\x1a\x00\x5c\x9f\xff\xff\x00\x00')
         self.assertEqual(file.data[1:1+4], b'abc$')
-        self.assertEqual(file.data_var, 'abc$')
+        self.assertEqual(file.data_var, 'abc')
         self.assertIsNone(file.execute)
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)

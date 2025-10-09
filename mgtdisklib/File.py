@@ -81,6 +81,13 @@ TYPE_NAMES = {
 }
 
 
+class TapeId(Enum):
+    BASIC = 0x00
+    DATA = 0x01
+    DATA_STR = 0x02
+    CODE = 0x03
+
+
 class TimeFormat(Enum):
     MASTERDOS = 0
     BDOS = 1
@@ -125,8 +132,10 @@ class File:
                 str += f',{self.execute}'
         elif self.type == FileType.SCREEN:
             str += f' [mode {self.screen_mode}]'
-        elif self.type in (FileType.DATA, FileType.DATA_STR, FileType.ZX_DATA, FileType.ZX_DATA_STR):
+        elif self.type in (FileType.DATA, FileType.ZX_DATA):
             str += f' [{self.data_var}]'
+        elif self.type in (FileType.DATA_STR, FileType.ZX_DATA_STR):
+            str += f' [{self.data_var}$]'
         elif self.type == FileType.ZX_BASIC:
             if self.execute is not None:
                 str += f'{self.execute:6}'
@@ -207,28 +216,25 @@ class File:
         sam_execute = File.triple_to_exec(data[242:242+3])
         sam_autorun = File.triple_to_line(data[242:242+3])
         sam_datavar = data[222:222+(data[221] & 0xf)].decode('ascii', errors='replace')
+        sam_screen_mode = 1 + (data[221] & 0x3)
 
         if file.type == FileType.ZX_BASIC:
             length = zx_length
             file.start = zx_start
             file.basic_length = zx_basic_length
             file.execute = zx_autorun
-        elif file.type == FileType.ZX_DATA:
+        elif file.type in (FileType.ZX_DATA, FileType.ZX_DATA_STR):
             length = zx_length
             file.start = zx_start
             file.data_var = zx_datavar
-        elif file.type == FileType.ZX_DATA_STR:
-            length = zx_length
-            file.start = zx_start
-            file.data_var = zx_datavar + '$'
         elif file.type == FileType.ZX_CODE:
             length = zx_length
             file.start = zx_start
             file.execute = zx_execute
         elif file.type == FileType.ZX_SNP_48K:
-            length = zx_length or (0x4000 * 3)  # only Uni-DOS sets this
+            length = zx_length or 0xc000  # only Uni-DOS sets this
             # TODO: Z80 regs
-        #elif file.type == FileType.ZX_MDRV:
+        #elif file.type == FileType.ZX_MDRV:  # TODO: find sample
         #    pass
         elif file.type == FileType.ZX_SCREEN:
             file.start = zx_start
@@ -237,7 +243,7 @@ class File:
             length = num_sectors * 512
             #file.header = data[211:256] # all custom?
         elif file.type == FileType.ZX_SNP_128K:
-            length = zx_length or (1 + (0x4000 * 8))  # only Uni-DOS sets this
+            length = zx_length or 0x20001  # only Uni-DOS sets this
             # TODO: Z80 regs
         elif file.type == FileType.OPENTYPE:
             length = zx_length
@@ -253,14 +259,10 @@ class File:
             file.start = sam_start
             length = sam_length
             file.execute = sam_autorun
-        elif file.type == FileType.DATA:
+        elif file.type in (FileType.DATA, FileType.DATA_STR):
             file.start = sam_start
             length = sam_length
             file.data_var = sam_datavar
-        elif file.type == FileType.DATA_STR:
-            file.start = sam_start
-            length = sam_length
-            file.data_var = sam_datavar + '$'
         elif file.type == FileType.CODE:
             file.start = sam_start
             length = sam_length
@@ -268,7 +270,7 @@ class File:
         elif file.type == FileType.SCREEN:
             file.start = sam_start
             length = sam_length
-            file.screen_mode = 1 + (data[221] & 0x3)
+            file.screen_mode = sam_screen_mode
         elif file.type == FileType.DRIVER_APP:
             file.start = sam_start
             length = sam_length
@@ -332,67 +334,94 @@ class File:
         data[14] = start_sector or 0
         data[15:15+195] = sector_map.tobytes()
 
-        zx_start = File.word_to_le(self.start or 0)
+        zx_tape_id = File.tape_id_from_type(self.type)
         zx_length = File.word_to_le(self.length or 0)
+        zx_length_64k = File.word_to_le((self.length or 0) >> 16)[0]
+        zx_start = File.word_to_le(self.start or 0)
+        zx_basic_length = File.word_to_le(self.basic_length or 0)
         zx_execute = File.word_to_le(self.execute or 0)
-        #zx_datavar = ord(self.data_var or 'a') - ord('a') + 1
+        zx_autorun = File.word_to_le(self.execute or 0xffff)
+        zx_datavar = ord((self.data_var or 'a').lower()[0]) - ord('a') + 1
+
+        zx_screen_addr = File.word_to_le(0x4000)
+        zx_screen_len = File.word_to_le(0x1b00)
+        zx_snap_48k_len = File.word_to_le(0xc000)
+        zx_snap_128k_len_hi = File.word_to_le(0x20001 >> 16)[0]
+        zx_snap_128k_len_lo = File.word_to_le(0x20001 & 0xffff)
 
         sam_start = File.addr_to_triple(self.start)
         sam_length = File.len_to_triple(self.length)
         sam_execute = File.exec_to_triple(self.execute)
+        sam_autorun = File.line_to_triple(self.execute)
+        sam_datavar = (self.data_var or '')[:10]  # BASIC limit
+        sam_screen_mode = ((self.screen_mode or 1) - 1) & 0x3
+        sam_dir = self.dir or 0
 
         if self.type == FileType.ZX_BASIC:
-            data[211:211+1] = b'\x00'
-            data[218:218+2] = File.word_to_le(self.execute or 0xffff)
-        #elif self.type == FileType.ZX_DATA:
-        #    data[211:211+1] = b'\x01'
-        #elif self.type == FileType.ZX_DATA_STR:
-        #    data[211:211+1] = b'\x02'
-        #    data[216] = zx_datavar
+            data[211] = zx_tape_id
+            data[212:212+2] = zx_length
+            data[216:216+2] = zx_basic_length
+            data[214:214+2] = zx_start
+            data[218:218+2] = zx_autorun
+        elif self.type in (FileType.ZX_DATA, FileType.ZX_DATA_STR):
+            data[211] = zx_tape_id
+            data[212:212+2] = zx_length
+            data[214:214+2] = zx_start
+            data[216] = zx_datavar
         elif self.type == FileType.ZX_CODE:
-            data[211:211+1] = b'\x03'
+            data[211] = zx_tape_id
             data[212:212+2] = zx_length
             data[214:214+2] = zx_start
             data[218:218+2] = zx_execute
-        #elif self.type == FileType.ZX_SNP_48K:
-        #    data[211:211+1] = b'\x03'
-        #elif self.type == FileType.ZX_MDRV:
-        #    pass
-        #elif self.type == FileType.ZX_SCREEN:
-        #    data[211:211+1] = b'\x03'
-        #    if self.start is not None:
-        #        data[212:212+2] = zx_length
-        #        data[214:214+2] = zx_start
-        #elif self.type == FileType.SPECIAL:
-        #    pass
-        #elif self.type == FileType.ZX_SNP_128K:
-        #    data[211:211+1] = b'\x10'
+        elif self.type == FileType.ZX_SNP_48K:
+            data[211] = zx_tape_id
+            data[212:212+2] = zx_snap_48k_len
+        elif self.type == FileType.ZX_MDRV:
+            pass
+        elif self.type == FileType.ZX_SCREEN:
+            data[211] = zx_tape_id
+            data[212:212+2] = zx_screen_len
+            data[214:214+2] = zx_screen_addr
+        elif self.type == FileType.SPECIAL:
+            pass
+        elif self.type == FileType.ZX_SNP_128K:
+            data[210] = zx_snap_128k_len_hi
+            data[211:211+1] = b'\x10'  # TODO: check
+            data[212:212+2] = zx_snap_128k_len_lo
         elif self.type == FileType.OPENTYPE:
-            data[210] = 0 if self.length is None else self.length >> 16
+            data[210] = zx_length_64k
             data[212:212+2] = zx_length
-        #elif self.type == FileType.ZX_EXECUTE:
-        #    pass
+        elif self.type == FileType.ZX_EXECUTE:
+            data[212:212+2] = File.word_to_le(510)
         elif self.type == FileType.BASIC:
-            data[242:242+3] = File.line_to_triple(self.execute)
-        #elif self.type == FileType.DATA:
-        #    pass
-        #elif self.type == FileType.DATA_STR:
-        #    pass
+            data[236:236+3] = sam_start
+            data[239:239+3] = sam_length
+            data[242:242+3] = sam_autorun
+        elif self.type in (FileType.DATA, FileType.DATA_STR):
+            data[221] = len(sam_datavar) & 0xf
+            data[222:222+len(sam_datavar)] = sam_datavar.encode('ascii', errors='ignore')
+            data[236:236+3] = sam_start
+            data[239:239+3] = sam_length
         elif self.type == FileType.CODE:
             data[236:236+3] = sam_start
             data[239:239+3] = sam_length
             data[242:242+3] = sam_execute
-        #elif self.type == FileType.SCREEN:
-        #    pass
-        #elif self.type == FileType.DIR:
-        #    pass
-        #elif self.type == FileType.DRIVER_APP:
-        #    pass
-        #elif self.type == FileType.DRIVER_BOOT:
-        #    pass
+        elif self.type == FileType.SCREEN:
+            data[221] = sam_screen_mode
+            data[236:236+3] = sam_start
+            data[239:239+3] = sam_length
+        elif self.type == FileType.DIR:
+            data[250] = sam_dir
+        elif self.type == FileType.DRIVER_APP:
+            data[236:236+3] = sam_start
+            data[239:239+3] = sam_length
+        elif self.type == FileType.DRIVER_BOOT:
+            data[236:236+3] = sam_start
+            data[239:239+3] = sam_length
 
         if File.is_sam_file_type(self.type):
             data[245:245+5] = File.pack_time(self.time, timefmt)
+            data[254] = sam_dir
 
         return bytes(data)
 
@@ -433,6 +462,18 @@ class File:
         """Return whether file type uses contiguous data sectors instead of a chain"""
         # TODO: should these use the sector map instead?
         return type in (FileType.SPECIAL, FileType.UNIDOS_DIR)
+
+    @staticmethod
+    def tape_id_from_type(type: FileType) -> int:
+        """Return ZX tape ID byte for given file type"""
+        zx_to_tape_types = {
+            FileType.NONE: TapeId.BASIC,
+            FileType.ZX_BASIC: TapeId.BASIC,
+            FileType.ZX_DATA: TapeId.DATA,
+            FileType.ZX_DATA_STR: TapeId.DATA_STR,
+            FileType.ZX_CODE: TapeId.CODE
+        }
+        return zx_to_tape_types.get(type, TapeId.CODE).value
 
     @staticmethod
     def data_bytes_per_sector(type: FileType) -> int:
