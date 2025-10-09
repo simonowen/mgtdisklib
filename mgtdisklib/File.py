@@ -119,7 +119,10 @@ class File:
 
     def __str__(self) -> str:
         """String representation of File, like directory text"""
-        str = f'{self.name:10} {self.sectors:4}  '
+        symbol = ('*' if self.hidden and self.protected else
+                  '-' if self.hidden else '+' if self.protected else ' ')
+
+        str = f'{symbol} {self.name:10} {self.sectors:4}  '
 
         str += TYPE_NAMES.get(self.type, 'WHAT?')
 

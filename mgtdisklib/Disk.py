@@ -159,7 +159,7 @@ class Disk:
         str = f'* {self.label or self.type.name}:\n'
 
         for i, file in enumerate(self.files):
-            str += f'{i+1:3}  {file}\n'
+            str += f'{i+1:3}{file}\n'
 
         total_sectors = (80 * 2 * spt * 512) // 512
         dir_sectors = self.dir_tracks * spt
