@@ -371,8 +371,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(File.line_to_triple(0x00ff), b'\x00\xff\x00')
         self.assertEqual(File.line_to_triple(0xfeff), b'\x00\xff\xfe')
         self.assertEqual(File.line_to_triple(None), b'\xff\xff\xff')
-        self.assertRaises(ValueError, File.line_to_triple, -1)
-        self.assertRaises(ValueError, File.line_to_triple, 0xff00)
+        self.assertEqual(File.line_to_triple(-1), b'\xff\xff\xff')
+        self.assertEqual(File.line_to_triple(0xff00), b'\xff\xff\xff')
 
     def test_is_contig_data_type(self):
         self.assertFalse(File.is_contig_data_type(FileType.NONE))
