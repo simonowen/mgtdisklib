@@ -312,9 +312,10 @@ class File:
 
     def save(self, path: str) -> None:
         """Export directory entry and file content for later"""
+        self.entry = self.to_dir()
 
         with open(path, 'wb') as f:
-            f.write(self.to_dir())
+            f.write(self.entry)
             if self.data:
                 f.write(self.data)
 
