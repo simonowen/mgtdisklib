@@ -144,6 +144,10 @@ class Disk:
         self.delete(file.name)
         self.files.insert(len(self.files) if at_index is None else at_index, file)
 
+    def find(self, pattern: str) -> List[File]:
+        """Find files matching filename pattern"""
+        return [file for file in self.files if fnmatch.fnmatch(file.name.lower(), pattern.lower())]
+
     def delete(self, pattern: str) -> int:
         """Delete files matching filename pattern"""
         files = len(self.files)

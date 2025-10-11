@@ -241,6 +241,18 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(disk.files[1].name, 'file3')
         self.assertEqual(disk.files[2].name, 'file2')
 
+    def test_find(self):
+        disk = Disk.open(f'{TESTDIR}/masterdos_dir_5trk.mgt.gz')
+        self.assertEqual([x.name for x in disk.find("*7")], ['7', '17', '27', '37', '47', '57', '67', '77', '87', '97'])
+        self.assertEqual([x.name for x in disk.find("8*")], ['8', '80', '81', '82', '83', '84', '85', '86', '87', '88', '89'])
+        self.assertEqual([x.name for x in disk.find("?7")], ['17', '27', '37', '47', '57', '67', '77', '87', '97'])
+        self.assertEqual(len([x.name for x in disk.find("*7*")]), 19)
+        self.assertEqual(len([x.name for x in disk.find("?")]), 9)
+        self.assertEqual(len([x.name for x in disk.find("??")]), 89)
+        self.assertEqual(len([x.name for x in disk.find("???")]), 0)
+        self.assertEqual(len([x.name for x in disk.find("")]), 0)
+        self.assertEqual(len([x.name for x in disk.find("foo")]), 0)
+
     def test_delete(self):
         disk = Disk()
         self.assertEqual(len(disk.files), 0)
