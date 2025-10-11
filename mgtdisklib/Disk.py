@@ -25,6 +25,8 @@ class DiskType(Enum):
 
 
 class Disk:
+    __slots__ = ('type', 'dir_tracks', 'label', 'serial', 'files', 'compressed')
+
     def __init__(self) -> None:
         self.type: DiskType = DiskType.SAMDOS
         self.dir_tracks: int = 4

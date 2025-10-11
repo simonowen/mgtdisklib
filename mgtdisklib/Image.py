@@ -12,6 +12,8 @@ from typing import Optional
 
 
 class Image:
+    __slots__ = ('path', 'spt', 'compressed', 'data')
+
     def __init__(self, *, spt: int = 10) -> None:
         self.path: Optional[str] = None
         self.spt: int = spt

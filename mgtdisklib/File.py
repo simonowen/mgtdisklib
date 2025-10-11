@@ -97,6 +97,10 @@ class TimeFormat(Enum):
 class File:
     HEADER_SIZE = 9
 
+    __slots__ = ('entry', 'type', 'hidden', 'protected', 'name_raw', 'name', 'start_track', 'start_sector',
+                    'sector_map', 'start', 'execute', 'basic_length', 'time', 'dir', 'data_var', 'screen_mode',
+                    'header', 'data')
+
     def __init__(self) -> None:
         self.entry: bytes = bytes(256)
         self.type: FileType = FileType.NONE
