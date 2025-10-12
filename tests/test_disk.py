@@ -212,6 +212,80 @@ class DiskTests(unittest.TestCase):
         disk = Disk.open(f'{TESTDIR}/zx_basic_auto.mgt.gz')
         self.assertFalse(disk.bootable)
 
+    def test_free_slots_samdos(self):
+        disk = Disk()
+        self.assertEqual(disk.free_slots(), 80)
+        disk.add_code_bytes(b'\x00', filename='fileA')
+        self.assertEqual(disk.free_slots(), 79)
+        for i in range(78):
+            disk.add_code_bytes(b'\x00', filename=f'file{i}')
+        self.assertEqual(disk.free_slots(), 1)
+        disk.add_code_bytes(b'\x00', filename='fileB')
+        self.assertEqual(disk.free_slots(), 0)
+        disk.add_code_bytes(b'\x00', filename='fileB')
+        self.assertEqual(disk.free_slots(), 0)  # clipped, checked in to_image()
+
+    def test_free_slots_masterdos(self):
+        disk = Disk()
+        disk.type = DiskType.MASTERDOS
+        disk.dir_tracks = 5
+        self.assertEqual(disk.free_slots(), 98)
+        disk.add_code_bytes(b'\x00', filename='fileA')
+        self.assertEqual(disk.free_slots(), 97)
+        for i in range(96):
+            disk.add_code_bytes(b'\x00', filename=f'file{i}')
+        self.assertEqual(disk.free_slots(), 1)
+        disk.add_code_bytes(b'\x00', filename='fileB')
+        self.assertEqual(disk.free_slots(), 0)
+
+    def test_free_sectors_samdos(self):
+        disk = Disk()
+        self.assertEqual(disk.free_sectors(), (160 - 4) * 10)
+        self.assertEqual(disk.free_sectors(spt=9), (160 - 4) * 9)
+        self.assertEqual(disk.free_sectors(), (160 - 4) * 10)
+        disk.add_code_file(f'{TESTDIR}/samdos2')
+        file = disk.files[0]
+        self.assertEqual(disk.free_sectors(), (160 - 4) * 10 - file.sectors)
+        file.data = b'\x00' * (((160 - 4) * 10 * 510) - 9 - 510)  # leave 1 sector
+        self.assertEqual(disk.free_sectors(), 1)
+        file.data += b'\x00'  # use a byte of final sector
+        self.assertEqual(disk.free_sectors(), 0)
+        file.data += b'\x00' * 510
+        self.assertEqual(disk.free_sectors(), 0)  # clipped, checked in to_image()
+
+    def test_free_sectors_masterdos(self):
+        disk = Disk()
+        disk.type = DiskType.MASTERDOS
+        disk.dir_tracks = 5
+        self.assertEqual(disk.free_sectors(), (160 - 5) * 10)
+        self.assertEqual(disk.free_sectors(spt=9), (160 - 5) * 9)
+        disk.dir_tracks = 39
+        self.assertEqual(disk.free_sectors(), (160 - 39) * 10)
+        self.assertEqual(disk.free_sectors(spt=9), (160 - 39) * 9)
+
+    def test_free_bytes_samdos(self):
+        disk = Disk()
+        self.assertEqual(disk.free_bytes(), (160 - 4) * 10 * 510 - 9)
+        self.assertEqual(disk.free_bytes(spt=9), (160 - 4) * 9 * 510 - 9)
+        self.assertEqual(disk.free_bytes(type=FileType.SPECIAL), 156 * 10 * 512)
+        disk.add_code_file(f'{TESTDIR}/samdos2')
+        file = disk.files[0]
+        self.assertEqual(disk.free_bytes(), ((160 - 4) * 10 - file.sectors) * 510 - 9)
+        file.data = b'\x00' * (((160 - 4) * 10 * 510) - 9 - 510)  # leave 1 sector
+        self.assertEqual(disk.free_bytes(), 510 - 9)
+        file.data += b'\x00'  # use a byte of final sector
+        self.assertEqual(disk.free_bytes(), 0)
+        file.data += b'\x00' * 510
+        self.assertEqual(disk.free_bytes(), 0)  # clipped, checked in to_image()
+
+    def test_free_bytes_masterdos(self):
+        disk = Disk()
+        disk.type = DiskType.MASTERDOS
+        disk.dir_tracks = 39
+        self.assertEqual(disk.free_bytes(), (160 - 39) * 10 * 510 - 9)
+        self.assertEqual(disk.free_bytes(spt=9), (160 - 39) * 9 * 510 - 9)
+        self.assertEqual(disk.free_bytes(type=FileType.SPECIAL), (160 - 39) * 10 * 512)
+
     def test_add_code_file(self):
         disk = Disk()
         self.assertEqual(len(disk.files), 0)

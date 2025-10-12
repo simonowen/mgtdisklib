@@ -102,6 +102,21 @@ class Disk:
 
         return disk
 
+    def free_slots(self, spt: int = 10) -> int:
+        """Number of free directory slots"""
+        return max(0, Disk.dir_slots(self.dir_tracks, spt=spt) - len(self.files))
+
+    def free_sectors(self, *, spt: int = 10) -> int:
+        """Total number of sectors used by all files"""
+        total_sectors = 80 * 2 * spt
+        dir_sectors = self.dir_tracks * spt
+        used_sectors = sum(file.sectors for file in self.files)
+        return max(0, total_sectors - dir_sectors - used_sectors)
+
+    def free_bytes(self, *, type: FileType = FileType.CODE, spt: int = 10) -> int:
+        """Total number of sectors used by all files"""
+        return max(0, self.free_sectors(spt=spt) * File.data_bytes_per_sector(type) - File.type_header_size(type))
+
     def save(self, path: str, *, compressed: bool = False, spt: int = 10) -> None:
         """Save disk content to disk image"""
         if spt <= 0:
@@ -180,16 +195,12 @@ class Disk:
         for i, file in enumerate(self.files):
             str += f'{i+1:3}{file}\n'
 
-        total_sectors = (80 * 2 * spt * 512) // 512
-        dir_sectors = self.dir_tracks * spt
         used_sectors = sum(file.sectors for file in self.files)
-        free_sectors = total_sectors - dir_sectors - used_sectors
-        free_slots = Disk.dir_slots(self.dir_tracks, spt) - len(self.files)
 
         str += f'\n{len(self.files):2} files'
-        str += f', {free_slots:2} free slots'
+        str += f', {self.free_slots(spt=spt)} free slots'
         str += f', {used_sectors/2:3}K used'
-        str += f', {free_sectors/2:3}K free\n'
+        str += f', {self.free_sectors(spt=spt)/2:3}K free\n'
         return str
 
     @staticmethod
