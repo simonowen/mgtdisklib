@@ -280,6 +280,42 @@ class DiskTests(unittest.TestCase):
         bam3 = disk.bam()
         self.assertEqual(bam3, disk.files[0].sector_map | disk.files[1].sector_map | disk.files[2].sector_map)
 
+    def test_dir_tracks_read(self):
+        disk = Disk.open(f'{TESTDIR}/masterdos_dir_39trk.mgt.gz')
+        self.assertEqual(disk.type, DiskType.MASTERDOS)
+        self.assertEqual(disk.dir_tracks, 39)
+        disk = Disk.open(f'{TESTDIR}/masterdos_dir_5trk.mgt.gz')
+        self.assertEqual(disk.type, DiskType.MASTERDOS)
+        self.assertEqual(disk.dir_tracks, 5)
+        self.assertEqual(disk.files[80-1].name, '80')
+        self.assertEqual(disk.files[81-1].name, '81')
+        self.assertEqual(disk.files[82-1].name, '82')
+        self.assertEqual(disk.files[83-1].name, '83')
+        self.assertEqual(disk.files[98-1].name, '98')
+
+    def test_dir_tracks_write(self):
+        disk = Disk()
+        disk.type = DiskType.SAMDOS
+        self.assertRaises(ValueError, lambda: setattr(disk, 'dir_tracks', 5))
+        disk.type = DiskType.BDOS
+        self.assertRaises(ValueError, lambda: setattr(disk, 'dir_tracks', 5))
+        disk.type = DiskType.MASTERDOS
+        self.assertRaises(ValueError, lambda: setattr(disk, 'dir_tracks', 3))
+        disk.dir_tracks = 5
+        disk.dir_tracks = 39
+        self.assertRaises(ValueError, lambda: setattr(disk, 'dir_tracks', 40))
+
+    def test_dir_sectors(self):
+        self.assertEqual(Disk.dir_slots(4), 80)
+        self.assertEqual(Disk.dir_slots(5), 98)  # track 4 sector 1 is boot sector
+        self.assertEqual(Disk.dir_slots(6), 118)
+        self.assertEqual(Disk.dir_slots(39), 778)
+        self.assertRaises(ValueError, Disk.dir_slots, -1)
+        self.assertRaises(ValueError, Disk.dir_slots, 0)
+        self.assertRaises(ValueError, Disk.dir_slots, 3)
+        self.assertRaises(ValueError, Disk.dir_slots, 40)
+        self.assertRaises(ValueError, Disk.dir_slots, 4, spt=0)
+
     def test_dir_position(self):
         self.assertEqual(Disk.dir_position(0), (0, 1, 0))
         self.assertEqual(Disk.dir_position(1), (0, 1, 256))
@@ -287,6 +323,11 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(Disk.dir_position(20), (1, 1, 0))
         self.assertEqual(Disk.dir_position(21), (1, 1, 256))
         self.assertEqual(Disk.dir_position(79), (3, 10, 256))
+        self.assertEqual(Disk.dir_position(80), (4, 2, 0))
+        self.assertEqual(Disk.dir_position(81), (4, 2, 256))
+        self.assertEqual(Disk.dir_position(82), (4, 3, 0))
+        self.assertEqual(Disk.dir_position(97), (4, 10, 256))
+        self.assertEqual(Disk.dir_position(98), (5, 1, 0))
 
     def test_dir_position_9spt(self):
         self.assertEqual(Disk.dir_position(0, spt=9), (0, 1, 0))

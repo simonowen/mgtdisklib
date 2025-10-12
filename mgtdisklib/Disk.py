@@ -25,11 +25,11 @@ class DiskType(Enum):
 
 
 class Disk:
-    __slots__ = ('type', 'dir_tracks', 'label', 'serial', 'files', 'compressed')
+    __slots__ = ('type', '_dir_tracks', 'label', 'serial', 'files', 'compressed')
 
     def __init__(self) -> None:
         self.type: DiskType = DiskType.SAMDOS
-        self.dir_tracks: int = 4
+        self._dir_tracks: int = 4
         self.label: Optional[str] = None
         self.serial: Optional[int] = None
         self.files: List[File] = []
@@ -38,6 +38,19 @@ class Disk:
     def __str__(self) -> str:
         """String representation of Disk, as directory listing"""
         return self.dir()
+
+    @property
+    def dir_tracks(self) -> int:
+        """Number of tracks used for directory (4-39)"""
+        return self._dir_tracks
+
+    @dir_tracks.setter
+    def dir_tracks(self, value: int) -> None:
+        if value > 4 and self.type is not DiskType.MASTERDOS:
+            raise ValueError('extra directory tracks requires a MasterDOS disk')
+        elif value < 4 or value > 39:
+            raise ValueError('4 to 39 directory tracks are supported')
+        self._dir_tracks = value
 
     @property
     def bootable(self) -> bool:
@@ -72,7 +85,7 @@ class Disk:
         if label_raw:
             disk.label = bytes(map(lambda x: x & 0x7f, label_raw)).decode('ascii', errors='replace').rstrip()
 
-        for i in range(disk.dir_tracks * image.spt * 2):
+        for i in range(Disk.dir_slots(disk.dir_tracks, image.spt)):
             entry = Disk.read_dir(image, i)
             file, length = File.from_dir(entry)
             if file.type:
@@ -171,7 +184,7 @@ class Disk:
         dir_sectors = self.dir_tracks * spt
         used_sectors = sum(file.sectors for file in self.files)
         free_sectors = total_sectors - dir_sectors - used_sectors
-        free_slots = self.dir_tracks * spt * 2 - len(self.files)
+        free_slots = Disk.dir_slots(self.dir_tracks, spt) - len(self.files)
 
         str += f'\n{len(self.files):2} files'
         str += f', {free_slots:2} free slots'
@@ -180,8 +193,20 @@ class Disk:
         return str
 
     @staticmethod
+    def dir_slots(dir_tracks: int = 4, spt: int = 10) -> int:
+        """Calculate number of sectors used by directory"""
+        if dir_tracks < 4 or dir_tracks > 39:
+            raise ValueError(f'invalid number of directory tracks ({dir_tracks})')
+        if spt <= 0:
+            raise ValueError(f'invalid sectors per track ({spt})')
+        reserved_slots = 2 if dir_tracks > 4 else 0  # track 4 sector 1 is boot sector
+        return (dir_tracks * spt * 2) - reserved_slots
+
+    @staticmethod
     def dir_position(index: int, spt: int = 10) -> Tuple[int, int, int]:
         """Calculate offset in image for zero-based directory entry"""
+        if index >= (4 * spt * 2):
+            index += 2  # skip track 4 sector 1
         track = index // (spt * 2)
         sector = 1 + (index % (spt * 2)) // 2
         offset = (index % 2) * 256
