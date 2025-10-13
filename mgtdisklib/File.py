@@ -97,8 +97,8 @@ class TimeFormat(Enum):
 class File:
     HEADER_SIZE = 9
 
-    __slots__ = ('entry', 'type', 'hidden', 'protected', 'name_raw', 'name', 'start_track', 'start_sector',
-                    'sector_map', 'start', 'execute', 'basic_length', 'time', 'dir', 'data_var', 'screen_mode',
+    __slots__ = ('entry', 'type', 'hidden', 'protected', 'name_raw', 'name', '_start_track', '_start_sector',
+                    '_sector_map', 'start', 'execute', 'basic_length', 'time', 'dir', 'data_var', 'screen_mode',
                     'header', 'data')
 
     def __init__(self) -> None:
@@ -108,9 +108,9 @@ class File:
         self.protected: bool = False
         self.name_raw: bytes = bytes()
         self.name: str = ''
-        self.start_track: Optional[int] = None
-        self.start_sector: Optional[int] = None
-        self.sector_map: bitarray = bitarray(endian='little')
+        self._start_track: Optional[int] = None
+        self._start_sector: Optional[int] = None
+        self._sector_map: bitarray = bitarray(endian='little')
         self.start: Optional[int] = None
         self.execute: Optional[int] = None
         self.basic_length: Optional[int] = None
@@ -154,6 +154,21 @@ class File:
         if self.time is not None:
             str = f'{str:43}' + self.time.strftime('%d/%m/%Y %H:%M')
         return str
+
+    @property
+    def start_track(self) -> Optional[int]:
+        """Starting track (1-80)"""
+        return self._start_track
+
+    @property
+    def start_sector(self) -> Optional[int]:
+        """Starting sector (1-10, usually)"""
+        return self._start_sector
+
+    @property
+    def sector_map(self) -> bitarray:
+        """Sector map as bitarray of 1560 bits (80*2-4 tracks * 10 sectors)"""
+        return self._sector_map
 
     @staticmethod
     def from_code_path(path: str, *, filename: Optional[str] = None, start: int = 0x8000,
@@ -201,9 +216,9 @@ class File:
         file.protected = True if data[0] & 0x40 else False
         file.name_raw = data[1:1+10]
         file.name = file.name_raw.decode('ascii', errors='replace')[:10].rstrip(' \0')
-        file.start_track = data[13]
-        file.start_sector = data[14]
-        file.sector_map = bitarray(endian='little')
+        file._start_track = data[13]
+        file._start_sector = data[14]
+        file._sector_map = bitarray(endian='little')
         file.sector_map.frombytes(data[15:15+195])
         file.time = File.unpack_time(data[245:245+5]) if File.is_sam_file_type(file.type) else None
 
