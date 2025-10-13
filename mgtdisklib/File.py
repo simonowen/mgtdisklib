@@ -330,7 +330,7 @@ class File:
         if self.type == FileType.NONE:
             return self.entry
 
-        sector_map = File.contig_sector_map(self.sectors, start_track, start_sector, spt)
+        sector_map = File.contig_sector_map(self.sectors, start_track, start_sector, spt=spt)
 
         # Use original as a template until we support writing all fields.
         data = bytearray(self.entry or bytes(256))
@@ -490,7 +490,7 @@ class File:
 
     @staticmethod
     def contig_sector_map(sectors: int, start_track: Optional[int], start_sector: Optional[int],
-                          spt: int = 10) -> bitarray:
+                          *, spt: int = 10) -> bitarray:
         """Generate sector map of contiguous sectors from a given position"""
         if not start_track or not start_sector:
             raise ValueError('missing start track and sector')

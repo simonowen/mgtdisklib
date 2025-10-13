@@ -85,7 +85,7 @@ class Disk:
         if label_raw:
             disk.label = bytes(map(lambda x: x & 0x7f, label_raw)).decode('ascii', errors='replace').rstrip()
 
-        for i in range(Disk.dir_slots(disk.dir_tracks, image.spt)):
+        for i in range(Disk.dir_slots(disk.dir_tracks, spt=image.spt)):
             entry = Disk.read_dir(image, i)
             file, length = File.from_dir(entry)
             if file.type:
@@ -102,7 +102,7 @@ class Disk:
 
         return disk
 
-    def free_slots(self, spt: int = 10) -> int:
+    def free_slots(self, *, spt: int = 10) -> int:
         """Number of free directory slots"""
         return max(0, Disk.dir_slots(self.dir_tracks, spt=spt) - len(self.files))
 
@@ -204,7 +204,7 @@ class Disk:
         return str
 
     @staticmethod
-    def dir_slots(dir_tracks: int = 4, spt: int = 10) -> int:
+    def dir_slots(dir_tracks: int = 4, *, spt: int = 10) -> int:
         """Calculate number of sectors used by directory"""
         if dir_tracks < 4 or dir_tracks > 39:
             raise ValueError(f'invalid number of directory tracks ({dir_tracks})')
@@ -214,7 +214,7 @@ class Disk:
         return (dir_tracks * spt * 2) - reserved_slots
 
     @staticmethod
-    def dir_position(index: int, spt: int = 10) -> Tuple[int, int, int]:
+    def dir_position(index: int, *, spt: int = 10) -> Tuple[int, int, int]:
         """Calculate offset in image for zero-based directory entry"""
         if index >= (4 * spt * 2):
             index += 2  # skip track 4 sector 1
@@ -228,7 +228,7 @@ class Disk:
         """Read zero-based directory entry"""
         if index < 0:
             raise IndexError(f'invalid directory index ({index})')
-        track, sector, offset = Disk.dir_position(index, image.spt)
+        track, sector, offset = Disk.dir_position(index, spt=image.spt)
         data = image.read_sector(track, sector)
         return data[offset:offset+256]
 
@@ -239,7 +239,7 @@ class Disk:
             raise IndexError(f'invalid directory index ({index})')
         elif len(entry) != 256:
             raise ValueError('directory entry should be 256 bytes')
-        track, sector, offset = Disk.dir_position(index, image.spt)
+        track, sector, offset = Disk.dir_position(index, spt=image.spt)
         data = bytearray(image.read_sector(track, sector))
         data[offset:offset+256] = entry
         image.write_sector(track, sector, bytes(data))
@@ -255,7 +255,7 @@ class Disk:
                 chunk = image.read_sector(track, sector)
                 if chunk_size == 512:
                     data += chunk
-                    track, sector = Disk.next_sector(track, sector, image.spt)
+                    track, sector = Disk.next_sector(track, sector, spt=image.spt)
                 else:
                     data += chunk[:-2]
                     track, sector = chunk[-2:]
@@ -274,7 +274,7 @@ class Disk:
             data = data[chunk_size:]
 
             try:
-                next_track, next_sector = Disk.next_sector(track, sector, image.spt)
+                next_track, next_sector = Disk.next_sector(track, sector, spt=image.spt)
             except ValueError:
                 raise RuntimeError('data area is out of space')
 
@@ -291,7 +291,7 @@ class Disk:
         return track, sector
 
     @staticmethod
-    def next_sector(track: int, sector: int, spt: int = 10) -> Tuple[int, int]:
+    def next_sector(track: int, sector: int, *, spt: int = 10) -> Tuple[int, int]:
         """Determine next sector position after given sector"""
         if track < 0 or (track & 0x7f) >= 80 or sector < 1 or sector > spt:
             raise ValueError(f'invalid sector position (track {track} sector {sector})')
