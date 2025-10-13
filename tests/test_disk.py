@@ -339,19 +339,19 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(disk.delete('T*'), 2)
         self.assertEqual(len(disk.files), 1)
 
-    def test_bam(self):
+    def test_sector_map(self):
         disk = Disk()
         disk.add_code_file(f'{TESTDIR}/samdos2')
         disk = disk.from_image(disk.to_image())
-        bam1 = disk.bam()
+        bam1 = disk.sector_map
         self.assertEqual(bam1, disk.files[0].sector_map)
         disk.add_code_file(f'{TESTDIR}/samdos2', filename='two')
         disk = disk.from_image(disk.to_image())
-        bam2 = disk.bam()
+        bam2 = disk.sector_map
         self.assertEqual(bam2, disk.files[0].sector_map | disk.files[1].sector_map)
         disk.add_code_file(f'{TESTDIR}/samdos2', filename='three')
         disk = disk.from_image(disk.to_image())
-        bam3 = disk.bam()
+        bam3 = disk.sector_map
         self.assertEqual(bam3, disk.files[0].sector_map | disk.files[1].sector_map | disk.files[2].sector_map)
 
     def test_dir_tracks_read(self):

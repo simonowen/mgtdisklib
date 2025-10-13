@@ -57,6 +57,11 @@ class Disk:
         """True if disk is bootable due to first file entry"""
         return len(self.files) > 0 and self.files[0].bootable
 
+    @property
+    def sector_map(self) -> bitarray:
+        """Combined Bitmap Address Map for all files"""
+        return functools.reduce(operator.or_, (file.sector_map for file in self.files))
+
     @staticmethod
     def open(path: str) -> 'Disk':
         """Load disk from disk image file"""
@@ -183,10 +188,6 @@ class Disk:
         files = len(self.files)
         self.files = [file for file in self.files if not fnmatch.fnmatch(file.name.lower(), pattern.lower())]
         return files - len(self.files)
-
-    def bam(self) -> bitarray:
-        """Combined Bitmap Address Map for all files"""
-        return functools.reduce(operator.or_, (file.sector_map for file in self.files))
 
     def dir(self, *, spt: int = 10) -> str:
         """Generate directory listing"""
