@@ -92,11 +92,11 @@ class Disk:
 
         for i in range(Disk.dir_slots(disk.dir_tracks, spt=image.spt)):
             entry = Disk.read_dir(image, i)
-            file, length = File.from_dir(entry)
+            file = File.from_dir(entry)
             if file.type:
                 if file.start_track and file.start_sector:
                     header_size = File.type_header_size(file.type)
-                    file_size = header_size + length
+                    file_size = header_size + (file._length or 0)
                     file.data = Disk.read_data(image, file.type, file_size, file.start_track, file.start_sector)
                     if File.type_has_data_header(file.type):
                         file.header = file.data[:header_size]

@@ -194,11 +194,11 @@ class FileTests(unittest.TestCase):
     def test_from_dir(self):
         with open(f'{TESTDIR}/samdos2.file', 'rb') as f:
             data = f.read()
-        file, length = File.from_dir(data[:256])
+        file = File.from_dir(data[:256])
         file.data = data[256:]
 
         self.assertEqual(file.header, b'')
-        self.assertEqual(len(file.data), length)
+        self.assertEqual(len(file.data), file._length)
         self.assertEqual(file.entry, data[:256])
         self.assertEqual(file.type, FileType.CODE)
         self.assertFalse(file.hidden)

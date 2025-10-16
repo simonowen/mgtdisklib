@@ -98,8 +98,8 @@ class File:
     HEADER_SIZE = 9
 
     __slots__ = ('entry', 'type', 'hidden', 'protected', 'name_raw', 'name', '_start_track', '_start_sector',
-                    '_sector_map', 'start', 'execute', 'basic_length', 'time', 'dir', 'data_var', 'screen_mode',
-                    'header', 'data')
+                    '_sector_map', '_sectors', 'start', '_length', 'execute', 'basic_length', 'time', 'dir',
+                    'data_var', 'screen_mode', 'header', 'data')
 
     def __init__(self) -> None:
         self.entry: bytes = bytes(256)
@@ -111,7 +111,9 @@ class File:
         self._start_track: Optional[int] = None
         self._start_sector: Optional[int] = None
         self._sector_map: bitarray = bitarray(endian='little')
+        self._sectors: Optional[int] = None
         self.start: Optional[int] = None
+        self._length: Optional[int] = None
         self.execute: Optional[int] = None
         self.basic_length: Optional[int] = None
         self.time: Optional[datetime] = None
@@ -186,11 +188,12 @@ class File:
                         execute: Optional[int] = None) -> 'File':
         """Create CODE file from bytes"""
 
-        file, _ = File.from_dir(bytes(256))
+        file = File.from_dir(bytes(256))
         file.type = FileType.CODE
         file.name = filename
         file.name_raw = bytes(f'{filename:10}', 'ascii')
         file.start = start
+        file._length = len(data)
         file.execute = execute
         file.data = data
         return file
@@ -200,13 +203,13 @@ class File:
         """Import file entry exported using save()"""
 
         with open(path, 'rb') as f:
-            file, _ = File.from_dir(f.read(256))
+            file = File.from_dir(f.read(256))
             if file.type != FileType.NONE:
                 file.data = f.read()
             return file
 
     @staticmethod
-    def from_dir(data: bytes) -> Tuple['File', int]:
+    def from_dir(data: bytes) -> 'File':
         """Create from 256-byte directory entry data, returns data length"""
 
         file = File()
@@ -216,6 +219,7 @@ class File:
         file.protected = True if data[0] & 0x40 else False
         file.name_raw = data[1:1+10]
         file.name = file.name_raw.decode('ascii', errors='replace')[:10].rstrip(' \0')
+        file._sectors = File.be_word(data[11:11+2])
         file._start_track = data[13]
         file._start_sector = data[14]
         file._sector_map = bitarray(endian='little')
@@ -223,7 +227,6 @@ class File:
         file.time = File.unpack_time(data[245:245+5]) if File.is_sam_file_type(file.type) else None
 
         num_sectors = file.sector_map.count(1)  # trust bitmap over stored sector count [see MNEMOdemo1]
-        length = 0
 
         # zx_tape_id = data[211]
         zx_length = (data[210] * 0x10000) + File.le_word(data[212:212+2])
@@ -241,71 +244,71 @@ class File:
         sam_screen_mode = 1 + (data[221] & 0x3)
 
         if file.type == FileType.ZX_BASIC:
-            length = zx_length
+            file._length = zx_length
             file.start = zx_start
             file.basic_length = zx_basic_length
             file.execute = zx_autorun
         elif file.type in (FileType.ZX_DATA, FileType.ZX_DATA_STR):
-            length = zx_length
+            file._length = zx_length
             file.start = zx_start
             file.data_var = zx_datavar
         elif file.type == FileType.ZX_CODE:
-            length = zx_length
+            file._length = zx_length
             file.start = zx_start
             file.execute = zx_execute
         elif file.type == FileType.ZX_SNP_48K:
-            length = zx_length or 0xc000  # only Uni-DOS sets this
+            file._length = zx_length or 0xc000  # only Uni-DOS sets this
             # TODO: Z80 regs
         #elif file.type == FileType.ZX_MDRV:  # TODO: find sample
         #    pass
         elif file.type == FileType.ZX_SCREEN:
             file.start = zx_start
-            length = zx_length
+            file._length = zx_length
         elif file.type == FileType.SPECIAL:
-            length = num_sectors * 512
+            file._length = num_sectors * 512
             #file.header = data[211:256] # all custom?
         elif file.type == FileType.ZX_SNP_128K:
-            length = zx_length or 0x20001  # only Uni-DOS sets this
+            file._length = zx_length or 0x20001  # only Uni-DOS sets this
             # TODO: Z80 regs
         elif file.type == FileType.OPENTYPE:
-            length = zx_length
+            file._length = zx_length
         elif file.type == FileType.ZX_EXECUTE:
-            length = zx_length or (512 - 2)  # only Uni-DOS sets this
+            file._length = zx_length or (512 - 2)  # only Uni-DOS sets this
             file.start = 0x1bd6
         elif file.type == FileType.UNIDOS_DIR:
             # Uni-DOS over-allocates, should be entries*256 rounded up to 512?
-            length = num_sectors * 512
+            file._length = num_sectors * 512
         elif file.type == FileType.UNIDOS_CREATE:
-            length = num_sectors * 512
+            file._length = num_sectors * 512
         elif file.type == FileType.BASIC:
             file.start = sam_start
-            length = sam_length
+            file._length = sam_length
             file.execute = sam_autorun
         elif file.type in (FileType.DATA, FileType.DATA_STR):
             file.start = sam_start
-            length = sam_length
+            file._length = sam_length
             file.data_var = sam_datavar
         elif file.type == FileType.CODE:
             file.start = sam_start
-            length = sam_length
+            file._length = sam_length
             file.execute = sam_execute
         elif file.type == FileType.SCREEN:
             file.start = sam_start
-            length = sam_length
+            file._length = sam_length
             file.screen_mode = sam_screen_mode
         elif file.type == FileType.DRIVER_APP:
             file.start = sam_start
-            length = sam_length
+            file._length = sam_length
         elif file.type == FileType.DRIVER_BOOT:
             file.start = sam_start
-            length = sam_length
+            file._length = sam_length
 
         if file.type == FileType.DIR:
             file.dir = data[250]
         elif File.is_sam_file_type(file.type) and data[254] not in (0x00, 0xff):
             file.dir = data[254]
 
-        return file, length
+        return file
 
     @property
     def length(self) -> int:
@@ -352,7 +355,7 @@ class File:
 
         data[0] = int(self.type) | (0x80 if self.hidden else 0) | (0x40 if self.protected else 0)
         data[1:1+10] = f'{self.name:10}'.encode('ascii', errors='replace')
-        data[11:11+2] = struct.pack('>H', self.sectors)  # big endian
+        data[11:11+2] = File.word_to_be(self.sectors)
         data[13] = start_track or 0
         data[14] = start_sector or 0
         data[15:15+195] = sector_map.tobytes()
@@ -560,9 +563,19 @@ class File:
         return int(struct.unpack('<H', data)[0])
 
     @staticmethod
+    def be_word(data: bytes) -> int:
+        """Unpack unsigned 16-bit value from 2 bytes (big endian)"""
+        return int(struct.unpack('>H', data)[0])
+
+    @staticmethod
     def word_to_le(val: Optional[int]) -> bytes:
         """Pack unsigned 16-bit value to 2 bytes (little endian)"""
         return struct.pack('<H', 0 if val is None else (val & 0xffff))
+
+    @staticmethod
+    def word_to_be(val: Optional[int]) -> bytes:
+        """Pack unsigned 16-bit value to 2 bytes (big endian)"""
+        return struct.pack('>H', 0 if val is None else (val & 0xffff))
 
     @staticmethod
     def unpack_triple(data: bytes) -> Tuple[int, int]:
