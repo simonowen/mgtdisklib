@@ -67,9 +67,9 @@ DiskType.BDOS           # BDOS, used by Atom and Atom Lite.
 ### Disk Instance Functions
 
 ```python
-    def save(self, path: str, *, compressed: bool = False, spt: int = 10) -> None:
+    def save(self, path: str, *, compressed: bool = False) -> None:
         """Save disk content to disk image"""
-    def to_image(self, *, spt: int = 10) -> Image:
+    def to_image(self) -> Image:
         """Generate MGT disk image from current contents"""
     def add_code_file(self, path: str, *, filename: Optional[str] = None, at_index: Optional[int] = None) -> None:
         """Add CODE file from path"""
@@ -79,7 +79,7 @@ DiskType.BDOS           # BDOS, used by Atom and Atom Lite.
         """Delete files matching filename pattern"""
     def bam(self) -> bitarray:
         """Combined Bitmap Address Map for all files"""
-    def dir(self, *, spt: int = 10) -> str:
+    def dir(self) -> str:
         """Return directory listing"""
 ```
 
@@ -161,7 +161,7 @@ TimeFormat.BDOS17       # Packed format for used by BDOS 1.7 or later.
 ```python
     def save(self, path: str) -> None:
         """Export directory entry and file content for later"""
-    def to_dir(self, start_track: int = 4, start_sector: int = 1, *, spt: int = 10, timefmt: TimeFormat = TimeFormat.BDOS) -> bytes:
+    def to_dir(self, start_track: int = 4, start_sector: int = 1, *, timefmt: TimeFormat = TimeFormat.BDOS) -> bytes:
         """Create directory entry from current file data"""
 ```
 
@@ -218,16 +218,20 @@ Creating an `Image()` object will give a standard 80/2/10/512 MGT disk image.
 ```
 
 MGT tracks are numbered are 0-79 for the first side and 128-207 for the second.
-Sectors are numbered 1-10 for normal format disks, each being 512 bytes.
+Sectors are numbered 1-10, each being 512 bytes. Only regular 10-sector disk
+images are supported.
 
 The first 4 tracks of the first side contain the disk directory, and the
 remainder of the disk holds data. The second side of the disk is only used once
 the first side is full. Track 4 sector 1 holds the boot sector.
 
+MasterDOS disks can be formatted to use up to 39 directory tracks, allowing up
+to 778 files to be stored. This is 2 less than expected because the boot sector
+remains in the same place for all disks.
+
 ### Image Instance Variables
 
 - `path` - full path of the disk image (Optional[str])
-- `spt` - sectors per track, usually 10 (int)
 - `compressed` - _True_ if the source image was gzipped (bool)
 - `data` - raw disk data from image file (bytearray)
 

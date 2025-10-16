@@ -8,123 +8,83 @@ from test_utils import TESTDIR, make_temp_file
 class ImageTests(unittest.TestCase):
     def test_construct_image(self):
         image = Image()
-        self.assertEqual(image.spt, 10)
         self.assertFalse(image.compressed)
         self.assertEqual(len(image.data), 819200)
-
-    def test_construct_image_9spt(self):
-        image = Image(spt=9)
-        self.assertEqual(image.spt, 9)
-        self.assertFalse(image.compressed)
-        self.assertEqual(len(image.data), 737280)
 
     def test_open_mgt_image(self):
         image = Image.open(f'{TESTDIR}/image.mgt')
         self.assertIsInstance(image, MGTImage)
-        self.assertEqual(image.spt, 10)
         self.assertFalse(image.compressed)
         self.assertEqual(len(image.data), 819200)
 
     def test_open_sad_image(self):
         image = Image.open(f'{TESTDIR}/image.sad')
         self.assertIsInstance(image, SADImage)
-        self.assertEqual(image.spt, 10)
         self.assertFalse(image.compressed)
         self.assertEqual(len(image.data), 819222)
 
     def test_open_edsk_image(self):
         image = Image.open(f'{TESTDIR}/image.dsk')
         self.assertIsInstance(image, EDSKImage)
-        self.assertEqual(image.spt, 10)
         self.assertFalse(image.compressed)
         self.assertEqual(len(image.data), 860416)
 
     def test_open_img_image(self):
         image = Image.open(f'{TESTDIR}/image.img')
         self.assertIsInstance(image, IMGImage)
-        self.assertEqual(image.spt, 10)
         self.assertFalse(image.compressed)
         self.assertEqual(len(image.data), 819200)
 
     def test_open_img_short_image(self):
         image = Image.open(f'{TESTDIR}/image_short.img.gz')
         self.assertIsInstance(image, IMGImage)
-        self.assertEqual(image.spt, 10)
         self.assertTrue(image.compressed)
         self.assertEqual(len(image.data), 819200)
 
     def test_open_mgt_gzip_image(self):
         image = Image.open(f'{TESTDIR}/image.mgt.gz')
         self.assertIsInstance(image, MGTImage)
-        self.assertEqual(image.spt, 10)
         self.assertTrue(image.compressed)
         self.assertEqual(len(image.data), 819200)
 
     def test_open_sad_gzip_image(self):
         image = Image.open(f'{TESTDIR}/image.sad.gz')
         self.assertIsInstance(image, SADImage)
-        self.assertEqual(image.spt, 10)
         self.assertTrue(image.compressed)
         self.assertEqual(len(image.data), 819222)
 
     def test_open_edsk_gzip_image(self):
         image = Image.open(f'{TESTDIR}/image.dsk.gz')
         self.assertIsInstance(image, EDSKImage)
-        self.assertEqual(image.spt, 10)
         self.assertTrue(image.compressed)
         self.assertEqual(len(image.data), 860416)
 
     def test_open_img_gzip_image(self):
         image = Image.open(f'{TESTDIR}/image.img.gz')
         self.assertIsInstance(image, IMGImage)
-        self.assertEqual(image.spt, 10)
         self.assertTrue(image.compressed)
         self.assertEqual(len(image.data), 819200)
 
     def test_open_mgt_zip_image(self):
         image = Image.open(f'{TESTDIR}/image.mgt.zip')
         self.assertIsInstance(image, MGTImage)
-        self.assertEqual(image.spt, 10)
         self.assertFalse(image.compressed)
         self.assertEqual(len(image.data), 819200)
 
     def test_open_mgt_gzip_zip_image(self):
         image = Image.open(f'{TESTDIR}/image.mgt.gz.zip')
         self.assertIsInstance(image, MGTImage)
-        self.assertEqual(image.spt, 10)
         self.assertTrue(image.compressed)
         self.assertEqual(len(image.data), 819200)
 
     def test_open_mgt_upper_zip_image(self):
         image = Image.open(f'{TESTDIR}/image_upper.zip')
         self.assertIsInstance(image, MGTImage)
-        self.assertEqual(image.spt, 10)
         self.assertFalse(image.compressed)
         self.assertEqual(len(image.data), 819200)
 
     def test_open_zip_multiple_images(self):
         self.assertRaises(RuntimeError, Image.open, f'{TESTDIR}/image_multiple.zip')
-
-    def test_open_mgt_image9(self):
-        image = Image.open(f'{TESTDIR}/image9.mgt')
-        self.assertIsInstance(image, MGTImage)
-        self.assertEqual(image.spt, 9)
-        self.assertFalse(image.compressed)
-        self.assertEqual(len(image.data), 737280)
-
-    def test_open_sad_image9(self):
-        image = Image.open(f'{TESTDIR}/image9.sad')
-        self.assertIsInstance(image, SADImage)
-        self.assertEqual(image.spt, 9)
-        self.assertFalse(image.compressed)
-        self.assertEqual(len(image.data), 22+737280)
-
-    def test_open_edsk_image9(self):
-        image = Image.open(f'{TESTDIR}/image9.dsk')
-        self.assertIsInstance(image, EDSKImage)
-        self.assertEqual(image.spt, 9)
-        self.assertFalse(image.compressed)
-        self.assertEqual(len(image.data), 778496)
 
     def test_open_invalid_image(self):
         self.assertRaises(RuntimeError, Image.open, f'{TESTDIR}/samdos2')
@@ -136,7 +96,6 @@ class ImageTests(unittest.TestCase):
             self.assertEqual(os.path.getsize(temp_path), 819200)
             image = Image.open(temp_path)
         self.assertFalse(image.compressed)
-        self.assertEqual(image.spt, 10)
 
     def test_save_mgt_gzip_image(self):
         image = Image()
@@ -145,16 +104,6 @@ class ImageTests(unittest.TestCase):
             self.assertLess(os.path.getsize(temp_path), 10000)
             image = Image.open(temp_path)
         self.assertTrue(image.compressed)
-        self.assertEqual(image.spt, 10)
-
-    def test_save_mgt_image9(self):
-        image = Image(spt=9)
-        with make_temp_file('.img') as temp_path:
-            image.save(temp_path)
-            self.assertEqual(os.path.getsize(temp_path), 737280)
-            image = Image.open(temp_path)
-        self.assertFalse(image.compressed)
-        self.assertEqual(image.spt, 9)
 
     def test_base_sector_offsets(self):
         image = Image()
@@ -172,18 +121,6 @@ class ImageTests(unittest.TestCase):
         self.assertRaises(ValueError, image.sector_offset, -1, 1)
         self.assertRaises(ValueError, image.sector_offset, 0, 0)
         self.assertRaises(ValueError, image.sector_offset, 0, 11)
-        self.assertRaises(ValueError, image.sector_offset, 80, 1)
-        self.assertRaises(ValueError, image.sector_offset, 208, 1)
-
-    def test_cpm_sector_offsets(self):
-        image = MGTImage(spt=9)
-        self.assertEqual(image.sector_offset(0, 1), 0)
-        self.assertEqual(image.sector_offset(1, 1), 2*9*512)
-        self.assertEqual(image.sector_offset(79, 9), (79*2*9+8)*512)
-        self.assertEqual(image.sector_offset(128, 1), 9*512)
-        self.assertEqual(image.sector_offset(207, 9), (80*2*9-1)*512)
-        self.assertRaises(ValueError, image.sector_offset, 0, 0)
-        self.assertRaises(ValueError, image.sector_offset, 0, 10)
         self.assertRaises(ValueError, image.sector_offset, 80, 1)
         self.assertRaises(ValueError, image.sector_offset, 208, 1)
 
@@ -227,20 +164,6 @@ class ImageTests(unittest.TestCase):
         self.assertRaises(ValueError, image.sector_offset, -1, 1)
         self.assertRaises(ValueError, image.sector_offset, 0, 0)
         self.assertRaises(ValueError, image.sector_offset, 0, 11)
-        self.assertRaises(ValueError, image.sector_offset, 80, 1)
-        self.assertRaises(ValueError, image.sector_offset, 208, 1)
-
-    def test_edsk_sector_offsets_9spt(self):
-        image = Image.open(f'{TESTDIR}/image9.dsk')
-        self.assertEqual(image.sector_offset(0, 1), 0x100+0x100)
-        self.assertEqual(image.sector_offset(0, 2), 0x100+0x100+512)
-        self.assertEqual(image.sector_offset(1, 1), 0x100+(0x1300*2)+0x100+512)
-        self.assertEqual(image.sector_offset(79, 9), 0x100+(0x1300*79*2)+0x100+6*512)
-        self.assertEqual(image.sector_offset(128, 1), 0x100+(0x1300)+0x100)
-        self.assertEqual(image.sector_offset(207, 9), 0x100+(0x1300*79*2+0x1300)+0x100+6*512)
-        self.assertRaises(ValueError, image.sector_offset, -1, 1)
-        self.assertRaises(ValueError, image.sector_offset, 0, 0)
-        self.assertRaises(ValueError, image.sector_offset, 0, 10)
         self.assertRaises(ValueError, image.sector_offset, 80, 1)
         self.assertRaises(ValueError, image.sector_offset, 208, 1)
 

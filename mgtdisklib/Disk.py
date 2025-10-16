@@ -90,7 +90,7 @@ class Disk:
         if label_raw:
             disk.label = bytes(map(lambda x: x & 0x7f, label_raw)).decode('ascii', errors='replace').rstrip()
 
-        for i in range(Disk.dir_slots(disk.dir_tracks, spt=image.spt)):
+        for i in range(Disk.dir_slots(disk.dir_tracks)):
             entry = Disk.read_dir(image, i)
             file = File.from_dir(entry)
             if file.type:
@@ -107,41 +107,37 @@ class Disk:
 
         return disk
 
-    def free_slots(self, *, spt: int = 10) -> int:
+    def free_slots(self) -> int:
         """Number of free directory slots"""
-        return max(0, Disk.dir_slots(self.dir_tracks, spt=spt) - len(self.files))
+        return max(0, Disk.dir_slots(self.dir_tracks) - len(self.files))
 
-    def free_sectors(self, *, spt: int = 10) -> int:
+    def free_sectors(self) -> int:
         """Total number of sectors used by all files"""
-        total_sectors = 80 * 2 * spt
-        dir_sectors = self.dir_tracks * spt
+        total_sectors = 80 * 2 * 10
+        dir_sectors = self.dir_tracks * 10
         used_sectors = sum(file.sectors for file in self.files)
         return max(0, total_sectors - dir_sectors - used_sectors)
 
-    def free_bytes(self, *, type: FileType = FileType.CODE, spt: int = 10) -> int:
+    def free_bytes(self, *, type: FileType = FileType.CODE) -> int:
         """Total number of sectors used by all files"""
-        return max(0, self.free_sectors(spt=spt) * File.data_bytes_per_sector(type) - File.type_header_size(type))
+        return max(0, self.free_sectors() * File.data_bytes_per_sector(type) - File.type_header_size(type))
 
-    def save(self, path: str, *, compressed: bool = False, spt: int = 10) -> None:
+    def save(self, path: str, *, compressed: bool = False) -> None:
         """Save disk content to disk image"""
-        if spt <= 0:
-            raise ValueError(f'invalid sectors per track ({spt})')
-        image = self.to_image(spt=spt)
+        image = self.to_image()
         image.save(path, compressed=compressed)
 
-    def to_image(self, *, spt: int = 10) -> Image:
+    def to_image(self) -> Image:
         """Generate MGT disk image from current contents"""
-        if spt <= 0:
-            raise ValueError(f'invalid sectors per track ({spt})')
-        image = MGTImage(spt=spt)
+        image = MGTImage()
         track, sector = self.dir_tracks, 1
         index = 0
         timefmt = TimeFormat.MASTERDOS if self.type is DiskType.MASTERDOS else TimeFormat.BDOS
 
         for file in self.files:
-            if index >= self.dir_tracks * spt * 2:
-                raise RuntimeError(f'too many files (>= {self.dir_tracks * spt * 2}) for directory')
-            entry = file.to_dir(track, sector, spt=image.spt, timefmt=timefmt)
+            if index >= self.dir_tracks * 10 * 2:
+                raise RuntimeError(f'too many files (>= {self.dir_tracks * 10 * 2}) for directory')
+            entry = file.to_dir(track, sector, timefmt=timefmt)
             data = file.data
             if File.type_has_data_header(file.type):
                 data = file.entry[0xd3:0xd3+File.HEADER_SIZE] + data
@@ -189,7 +185,7 @@ class Disk:
         self.files = [file for file in self.files if not fnmatch.fnmatch(file.name.lower(), pattern.lower())]
         return files - len(self.files)
 
-    def dir(self, *, spt: int = 10) -> str:
+    def dir(self) -> str:
         """Generate directory listing"""
         str = f'* {self.label or self.type.name}:\n'
 
@@ -199,28 +195,26 @@ class Disk:
         used_sectors = sum(file.sectors for file in self.files)
 
         str += f'\n{len(self.files):2} files'
-        str += f', {self.free_slots(spt=spt)} free slots'
+        str += f', {self.free_slots()} free slots'
         str += f', {used_sectors/2:3}K used'
-        str += f', {self.free_sectors(spt=spt)/2:3}K free\n'
+        str += f', {self.free_sectors()/2:3}K free\n'
         return str
 
     @staticmethod
-    def dir_slots(dir_tracks: int = 4, *, spt: int = 10) -> int:
+    def dir_slots(dir_tracks: int = 4) -> int:
         """Calculate number of sectors used by directory"""
         if dir_tracks < 4 or dir_tracks > 39:
             raise ValueError(f'invalid number of directory tracks ({dir_tracks})')
-        if spt <= 0:
-            raise ValueError(f'invalid sectors per track ({spt})')
         reserved_slots = 2 if dir_tracks > 4 else 0  # track 4 sector 1 is boot sector
-        return (dir_tracks * spt * 2) - reserved_slots
+        return (dir_tracks * 10 * 2) - reserved_slots
 
     @staticmethod
-    def dir_position(index: int, *, spt: int = 10) -> Tuple[int, int, int]:
+    def dir_position(index: int) -> Tuple[int, int, int]:
         """Calculate offset in image for zero-based directory entry"""
-        if index >= (4 * spt * 2):
+        if index >= (4 * 10 * 2):
             index += 2  # skip track 4 sector 1
-        track = index // (spt * 2)
-        sector = 1 + (index % (spt * 2)) // 2
+        track = index // (10 * 2)
+        sector = 1 + (index % (10 * 2)) // 2
         offset = (index % 2) * 256
         return track, sector, offset
 
@@ -229,7 +223,7 @@ class Disk:
         """Read zero-based directory entry"""
         if index < 0:
             raise IndexError(f'invalid directory index ({index})')
-        track, sector, offset = Disk.dir_position(index, spt=image.spt)
+        track, sector, offset = Disk.dir_position(index)
         data = image.read_sector(track, sector)
         return data[offset:offset+256]
 
@@ -240,7 +234,7 @@ class Disk:
             raise IndexError(f'invalid directory index ({index})')
         elif len(entry) != 256:
             raise ValueError('directory entry should be 256 bytes')
-        track, sector, offset = Disk.dir_position(index, spt=image.spt)
+        track, sector, offset = Disk.dir_position(index)
         data = bytearray(image.read_sector(track, sector))
         data[offset:offset+256] = entry
         image.write_sector(track, sector, bytes(data))
@@ -256,7 +250,7 @@ class Disk:
                 chunk = image.read_sector(track, sector)
                 if chunk_size == 512:
                     data += chunk
-                    track, sector = Disk.next_sector(track, sector, spt=image.spt)
+                    track, sector = Disk.next_sector(track, sector)
                 else:
                     data += chunk[:-2]
                     track, sector = chunk[-2:]
@@ -275,7 +269,7 @@ class Disk:
             data = data[chunk_size:]
 
             try:
-                next_track, next_sector = Disk.next_sector(track, sector, spt=image.spt)
+                next_track, next_sector = Disk.next_sector(track, sector)
             except ValueError:
                 raise RuntimeError('data area is out of space')
 
@@ -292,12 +286,12 @@ class Disk:
         return track, sector
 
     @staticmethod
-    def next_sector(track: int, sector: int, *, spt: int = 10) -> Tuple[int, int]:
+    def next_sector(track: int, sector: int) -> Tuple[int, int]:
         """Determine next sector position after given sector"""
-        if track < 0 or (track & 0x7f) >= 80 or sector < 1 or sector > spt:
+        if track < 0 or (track & 0x7f) >= 80 or sector < 1 or sector > 10:
             raise ValueError(f'invalid sector position (track {track} sector {sector})')
         sector += 1
-        if sector > spt:
+        if sector > 10:
             sector = 1
             track += 1
             if track == 80:

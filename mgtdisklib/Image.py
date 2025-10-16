@@ -12,13 +12,12 @@ from typing import Optional
 
 
 class Image:
-    __slots__ = ('path', 'spt', 'compressed', 'data')
+    __slots__ = ('path', 'compressed', 'data')
 
-    def __init__(self, *, spt: int = 10) -> None:
+    def __init__(self) -> None:
         self.path: Optional[str] = None
-        self.spt: int = spt
         self.compressed: bool = False
-        self.data: bytearray = bytearray(80 * 2 * self.spt * 512)
+        self.data: bytearray = bytearray(80 * 2 * 10 * 512)
 
     @staticmethod
     def is_img_image(data: bytes) -> bool:
@@ -55,16 +54,12 @@ class Image:
         image: Optional[Image] = None
         if Image.is_img_image(data):
             image = IMGImage()
-            image.spt = 10
-        elif len(data) == 819200 or len(data) == 737280:
+        elif len(data) == 819200:
             image = MGTImage()
-            image.spt = len(data) // (80 * 2 * 512)
-        elif len(data) == 819222 or len(data) == 737302:
+        elif len(data) == 819222:
             image = SADImage()
-            image.spt = (len(data) - 22) // (80 * 2 * 512)
-        elif len(data) == 860416 or len(data) == 778496:
+        elif len(data) == 860416:
             image = EDSKImage()
-            image.spt = (((len(data) - 0x100) // (80 * 2)) - 0x100) // 512
         else:
             raise RuntimeError(f'{path} is not a supported disk image')
 
@@ -106,39 +101,39 @@ class MGTImage(Image):
     def sector_offset(self, track: int, sector: int) -> int:
         """Calculate sector data offset in MGT image"""
 
-        if track < 0 or (track & 0x7f) >= 80 or sector < 1 or sector > self.spt:
+        if track < 0 or (track & 0x7f) >= 80 or sector < 1 or sector > 10:
             raise ValueError(f'invalid sector location: track {track} sector {sector}')
 
-        return ((track & 0x7f) * self.spt * 2 + (track >> 7) * self.spt + (sector - 1)) * 512
+        return ((track & 0x7f) * 10 * 2 + (track >> 7) * 10 + (sector - 1)) * 512
 
 
 class IMGImage(Image):
     def sector_offset(self, track: int, sector: int) -> int:
         """Calculate sector data offset in IMG image"""
 
-        if track < 0 or (track & 0x7f) >= 80 or sector < 1 or sector > self.spt:
+        if track < 0 or (track & 0x7f) >= 80 or sector < 1 or sector > 10:
             raise ValueError(f'invalid sector location track {track} sector {sector}')
 
-        return (((track >> 7) * 80 + (track & 0x7f)) * self.spt + (sector - 1)) * 512
+        return (((track >> 7) * 80 + (track & 0x7f)) * 10 + (sector - 1)) * 512
 
 
 class SADImage(Image):
     def sector_offset(self, track: int, sector: int) -> int:
         """Calculate sector data offset in SAD image"""
 
-        if track < 0 or (track & 0x7f) >= 80 or sector < 1 or sector > self.spt:
+        if track < 0 or (track & 0x7f) >= 80 or sector < 1 or sector > 10:
             raise ValueError(f'invalid sector location track {track} sector {sector}')
 
-        return 22 + (((track >> 7) * 80 + (track & 0x7f)) * self.spt + (sector - 1)) * 512
+        return 22 + (((track >> 7) * 80 + (track & 0x7f)) * 10 + (sector - 1)) * 512
 
 
 class EDSKImage(Image):
     def sector_offset(self, track: int, sector: int) -> int:
         """Calculate sector data offset in EDSK image"""
 
-        if track < 0 or (track & 0x7f) >= 80 or sector < 1 or sector > self.spt:
+        if track < 0 or (track & 0x7f) >= 80 or sector < 1 or sector > 10:
             raise ValueError(f'invalid sector location track {track} sector {sector}')
 
-        track_offset = 0x100 + ((track & 0x7f) * 2 + (track >> 7)) * (0x100 + self.spt * 512)
-        sectors = [self.data[track_offset + 0x1a + i * 8] for i in range(self.spt)]
+        track_offset = 0x100 + ((track & 0x7f) * 2 + (track >> 7)) * (0x100 + 10 * 512)
+        sectors = [self.data[track_offset + 0x1a + s * 8] for s in range(10)]
         return track_offset + 0x100 + sectors.index(sector) * 512

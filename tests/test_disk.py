@@ -60,38 +60,14 @@ class DiskTests(unittest.TestCase):
             image = Image.open(temp_path)
             self.assertEqual(os.path.getsize(temp_path), 819200)
             self.assertEqual(len(image.data), 819200)
-            self.assertRaises(ValueError, Disk.save, disk, temp_path, spt=0)
-
-    def test_save_9spt(self):
-        disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
-        with make_temp_file('.mgt') as temp_path:
-            disk.save(temp_path, spt=9)
-            image = Image.open(temp_path)
-            self.assertEqual(os.path.getsize(temp_path), 737280)
-            self.assertEqual(len(image.data), 737280)
 
     def test_to_image(self):
         disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
         image = disk.to_image()
         disk2 = Disk.from_image(image)
         self.assertFalse(disk2.compressed)
-        self.assertRaises(ValueError, Disk.to_image, disk, spt=0)
 
         self.assertEqual(len(image.data), 819200)
-        self.assertEqual(disk.type, disk2.type)
-        self.assertEqual(disk.dir_tracks, disk2.dir_tracks)
-        self.assertEqual(disk.label, disk2.label)
-        self.assertEqual(disk.serial, disk2.serial)
-        self.assertEqual(len(disk.files), len(disk2.files))
-        self.assertEqual(disk.files[0].data, disk2.files[0].data)
-
-    def test_to_image_9spt(self):
-        disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
-        image = disk.to_image(spt=9)
-        disk2 = Disk.from_image(image)
-        self.assertFalse(disk2.compressed)
-
-        self.assertEqual(len(image.data), 737280)
         self.assertEqual(disk.type, disk2.type)
         self.assertEqual(disk.dir_tracks, disk2.dir_tracks)
         self.assertEqual(disk.label, disk2.label)
@@ -107,27 +83,12 @@ class DiskTests(unittest.TestCase):
         disk.files = [file for i in range(81)]
         self.assertRaises(RuntimeError, Disk.to_image, disk)
 
-    def test_to_image_file_limit_9spt(self):
-        disk = Disk.open(f'{TESTDIR}/basic_auto.mgt.gz')
-        file = disk.files[0]
-        disk.files = [file for i in range(72)]
-        disk.to_image(spt=9)
-        disk.files = [file for i in range(73)]
-        self.assertRaises(RuntimeError, Disk.to_image, disk, spt=9)
-
     def test_to_image_data_limit(self):
         disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
         disk.files[0].data = bytes((76 + 80) * 10 * 510 - 9)
         disk.to_image()
         disk.files[0].data += bytes(1)
         self.assertRaises(RuntimeError, Disk.to_image, disk)
-
-    def test_to_image_data_limit_9spt(self):
-        disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
-        disk.files[0].data = bytes((76 + 80) * 9 * 510 - 9)
-        disk.to_image(spt=9)
-        disk.files[0].data += bytes(1)
-        self.assertRaises(RuntimeError, Disk.to_image, disk, spt=9)
 
     def test_to_image_label_samdos(self):
         disk = Disk()
@@ -241,7 +202,6 @@ class DiskTests(unittest.TestCase):
     def test_free_sectors_samdos(self):
         disk = Disk()
         self.assertEqual(disk.free_sectors(), (160 - 4) * 10)
-        self.assertEqual(disk.free_sectors(spt=9), (160 - 4) * 9)
         self.assertEqual(disk.free_sectors(), (160 - 4) * 10)
         disk.add_code_file(f'{TESTDIR}/samdos2')
         file = disk.files[0]
@@ -258,15 +218,12 @@ class DiskTests(unittest.TestCase):
         disk.type = DiskType.MASTERDOS
         disk.dir_tracks = 5
         self.assertEqual(disk.free_sectors(), (160 - 5) * 10)
-        self.assertEqual(disk.free_sectors(spt=9), (160 - 5) * 9)
         disk.dir_tracks = 39
         self.assertEqual(disk.free_sectors(), (160 - 39) * 10)
-        self.assertEqual(disk.free_sectors(spt=9), (160 - 39) * 9)
 
     def test_free_bytes_samdos(self):
         disk = Disk()
         self.assertEqual(disk.free_bytes(), (160 - 4) * 10 * 510 - 9)
-        self.assertEqual(disk.free_bytes(spt=9), (160 - 4) * 9 * 510 - 9)
         self.assertEqual(disk.free_bytes(type=FileType.SPECIAL), 156 * 10 * 512)
         disk.add_code_file(f'{TESTDIR}/samdos2')
         file = disk.files[0]
@@ -283,7 +240,6 @@ class DiskTests(unittest.TestCase):
         disk.type = DiskType.MASTERDOS
         disk.dir_tracks = 39
         self.assertEqual(disk.free_bytes(), (160 - 39) * 10 * 510 - 9)
-        self.assertEqual(disk.free_bytes(spt=9), (160 - 39) * 9 * 510 - 9)
         self.assertEqual(disk.free_bytes(type=FileType.SPECIAL), (160 - 39) * 10 * 512)
 
     def test_add_code_file(self):
@@ -394,7 +350,6 @@ class DiskTests(unittest.TestCase):
         self.assertRaises(ValueError, Disk.dir_slots, 0)
         self.assertRaises(ValueError, Disk.dir_slots, 3)
         self.assertRaises(ValueError, Disk.dir_slots, 40)
-        self.assertRaises(ValueError, Disk.dir_slots, 4, spt=0)
 
     def test_dir_position(self):
         self.assertEqual(Disk.dir_position(0), (0, 1, 0))
@@ -408,14 +363,6 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(Disk.dir_position(82), (4, 3, 0))
         self.assertEqual(Disk.dir_position(97), (4, 10, 256))
         self.assertEqual(Disk.dir_position(98), (5, 1, 0))
-
-    def test_dir_position_9spt(self):
-        self.assertEqual(Disk.dir_position(0, spt=9), (0, 1, 0))
-        self.assertEqual(Disk.dir_position(1, spt=9), (0, 1, 256))
-        self.assertEqual(Disk.dir_position(2, spt=9), (0, 2, 0))
-        self.assertEqual(Disk.dir_position(18, spt=9), (1, 1, 0))
-        self.assertEqual(Disk.dir_position(19, spt=9), (1, 1, 256))
-        self.assertEqual(Disk.dir_position(71, spt=9), (3, 9, 256))
 
     def test_read_dir(self):
         image = Image.open(f'{TESTDIR}/samdos2.mgt.gz')
@@ -465,17 +412,6 @@ class DiskTests(unittest.TestCase):
                          for t in range(4, 4+144) for s in range(1, 11, 1)])
         self.assertEqual(data, data2)
 
-    def test_write_data_9spt(self):
-        image = Image.open(f'{TESTDIR}/samdos2.mgt.gz')
-        data = Disk.read_data(image, FileType.CODE, 10000, 4, 1)
-        image2 = MGTImage(spt=9)
-        Disk.write_data(image2, FileType.CODE, 4, 1, data)
-        data2 = Disk.read_data(image2, FileType.CODE, 10000, 4, 1)
-        self.assertEqual(data, data2)
-        self.assertEqual(image2.read_sector(4, 9)[510:], bytes((5, 1)))
-        Disk.write_data, image2, 207, 9, bytes(510)
-        self.assertRaises(RuntimeError, Disk.write_data, image2, FileType.CODE, 207, 9, bytes(2 * 510))
-
     def test_next_sector(self):
         self.assertEqual(Disk.next_sector(0, 1), (0, 2))
         self.assertEqual(Disk.next_sector(0, 10), (1, 1))
@@ -486,16 +422,6 @@ class DiskTests(unittest.TestCase):
         self.assertRaises(ValueError, Disk.next_sector, 0, 11)
         self.assertRaises(ValueError, Disk.next_sector, 80, 1)
         self.assertRaises(ValueError, Disk.next_sector, 208, 1)
-
-    def test_next_sector_9spt(self):
-        self.assertEqual(Disk.next_sector(0, 1, spt=9), (0, 2))
-        self.assertEqual(Disk.next_sector(0, 9, spt=9), (1, 1))
-        self.assertEqual(Disk.next_sector(79, 9, spt=9), (128, 1))
-        self.assertEqual(Disk.next_sector(128, 9, spt=9), (129, 1))
-        self.assertEqual(Disk.next_sector(207, 9, spt=9), (208, 1))
-        self.assertRaises(ValueError, Disk.next_sector, 0, 10, spt=9)
-        self.assertRaises(ValueError, Disk.next_sector, 80, 1, spt=9)
-        self.assertRaises(ValueError, Disk.next_sector, 208, 1, spt=9)
 
     def test_str(self):
         disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
@@ -519,10 +445,6 @@ class DiskTests(unittest.TestCase):
         disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
         dir = disk.dir().splitlines()
         self.assertEqual(len(dir), 4)
-
-        disk = Disk.open(f'{TESTDIR}/image9.mgt')
-        dir = disk.dir(spt=9).splitlines()
-        self.assertEqual(dir[-1], ' 0 files, 72 free slots, 0.0K used, 702.0K free')
 
 
 if __name__ == '__main__':

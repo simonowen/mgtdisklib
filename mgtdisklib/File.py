@@ -341,14 +341,13 @@ class File:
             if self.data:
                 f.write(self.data)
 
-    def to_dir(self, start_track: int = 4, start_sector: int = 1, *, spt: int = 10,
-               timefmt: TimeFormat = TimeFormat.BDOS) -> bytes:
+    def to_dir(self, start_track: int = 4, start_sector: int = 1, timefmt: TimeFormat = TimeFormat.BDOS) -> bytes:
         """Create directory entry from current file data"""
 
         if self.type == FileType.NONE:
             return self.entry
 
-        sector_map = File.contig_sector_map(self.sectors, start_track, start_sector, spt=spt)
+        sector_map = File.contig_sector_map(self.sectors, start_track, start_sector)
 
         # Use original as a template until we support writing all fields.
         data = bytearray(self.entry or bytes(256))
@@ -507,17 +506,16 @@ class File:
         return 512 if File.is_contig_data_type(type) else 510
 
     @staticmethod
-    def contig_sector_map(sectors: int, start_track: Optional[int], start_sector: Optional[int],
-                          *, spt: int = 10) -> bitarray:
+    def contig_sector_map(sectors: int, start_track: Optional[int], start_sector: Optional[int]) -> bitarray:
         """Generate sector map of contiguous sectors from a given position"""
         if not start_track or not start_sector:
             raise ValueError('missing start track and sector')
-        elif start_sector > spt or start_sector < 1:
-            raise ValueError('start sector out of range')
+        elif start_sector < 1 or start_sector > 10:
+            raise ValueError('start sector {start_sector} out of range (1-10)')
         elif sectors < 0:
             raise ValueError('sectors must be non-negative')
         sector_map = bitarray('0' * 1560, endian='little')
-        offset = (start_track - 4 - (0 if start_track < 80 else (128 - 80))) * spt + (start_sector - 1)
+        offset = (start_track - 4 - (0 if start_track < 80 else (128 - 80))) * 10 + (start_sector - 1)
         sector_map[offset:offset+sectors] = 1
         return sector_map
 

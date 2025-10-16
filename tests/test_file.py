@@ -1273,7 +1273,6 @@ class FileTests(unittest.TestCase):
         self.assertRaises(ValueError, File.contig_sector_map, 1, None, 1)
         self.assertRaises(ValueError, File.contig_sector_map, 1, 4, None)
         self.assertRaises(ValueError, File.contig_sector_map, 1, 4, 11)
-        self.assertRaises(ValueError, File.contig_sector_map, 1, 4, 10, spt=9)
     
     def test_config_sector_map_start(self):
         self.assertEqual(File.contig_sector_map(0, 4, 1)[:10], bitarray('0000000000'))
