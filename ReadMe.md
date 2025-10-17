@@ -161,7 +161,7 @@ TimeFormat.BDOS17       # Packed format for used by BDOS 1.7 or later.
 ```python
     def save(self, path: str) -> None:
         """Export directory entry and file content for later"""
-    def to_dir(self, start_track: int = 4, start_sector: int = 1, *, timefmt: TimeFormat = TimeFormat.BDOS) -> bytes:
+    def to_dir(self, start_track: int = 4, start_sector: int = 1, *, timefmt: TimeFormat = TimeFormat.MASTERDOS) -> bytes:
         """Create directory entry from current file data"""
 ```
 

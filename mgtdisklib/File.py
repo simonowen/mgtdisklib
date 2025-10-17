@@ -341,7 +341,8 @@ class File:
             if self.data:
                 f.write(self.data)
 
-    def to_dir(self, start_track: int = 4, start_sector: int = 1, timefmt: TimeFormat = TimeFormat.BDOS) -> bytes:
+    def to_dir(self, start_track: int = 4, start_sector: int = 1,
+               timefmt: TimeFormat = TimeFormat.MASTERDOS) -> bytes:
         """Create directory entry from current file data"""
 
         if self.type == FileType.NONE:
@@ -520,7 +521,7 @@ class File:
         return sector_map
 
     @staticmethod
-    def pack_time(time: Optional[datetime], format: TimeFormat = TimeFormat.BDOS) -> bytes:
+    def pack_time(time: Optional[datetime], format: TimeFormat = TimeFormat.MASTERDOS) -> bytes:
         """Pack given date/time into 5 bytes"""
         if time is None:
             return b'\x00\x00\x00\x00\x00'

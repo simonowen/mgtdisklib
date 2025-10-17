@@ -1255,6 +1255,9 @@ class FileTests(unittest.TestCase):
     def test_pack_time(self):
         self.assertEqual(File.pack_time(None), b'\x00\x00\x00\x00\x00')
 
+        self.assertEqual(File.pack_time(datetime(2000, 1, 1, 0, 0, 0)), b'\x01\x01\x00\x00\x00')
+        self.assertEqual(File.pack_time(datetime(2079, 12, 31, 23, 59)), b'\x1f\x0c\x4f\x17\x3b')
+
         self.assertEqual(File.pack_time(datetime(2000, 1, 1, 0, 0, 0), TimeFormat.MASTERDOS), b'\x01\x01\x00\x00\x00')
         self.assertEqual(File.pack_time(datetime(2079, 12, 31, 23, 59), TimeFormat.MASTERDOS), b'\x1f\x0c\x4f\x17\x3b')
 

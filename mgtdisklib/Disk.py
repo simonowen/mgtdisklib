@@ -132,7 +132,7 @@ class Disk:
         image = MGTImage()
         track, sector = self.dir_tracks, 1
         index = 0
-        timefmt = TimeFormat.MASTERDOS if self.type is DiskType.MASTERDOS else TimeFormat.BDOS
+        timefmt = TimeFormat.BDOS if self.type is DiskType.BDOS else TimeFormat.MASTERDOS
 
         for file in self.files:
             if index >= self.dir_tracks * 10 * 2:
