@@ -910,17 +910,17 @@ class FileTests(unittest.TestCase):
 
     def test_type_zx_unidos_create(self):
         file = Disk.open(f'{TESTDIR}/unidos_create.mgt.gz').files[0]
-        self.assertEqual(str(file), '+ ext_code      1  UNIDOS CREATE')
+        self.assertEqual(str(file), '+ pic_code      4  UNIDOS CREATE')
         self.assertEqual(file.type, FileType.UNIDOS_CREATE)
         self.assertFalse(file.hidden)
         self.assertTrue(file.protected)
-        self.assertEqual(file.name, 'ext_code')
+        self.assertEqual(file.name, 'pic_code')
         self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
-        self.assertEqual(file.sectors, 1)
-        self.assertEqual(file.length, 512-2)
+        self.assertEqual(file.sectors, 4)
+        self.assertEqual(file.length, 0x06aa)
         self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
         self.assertEqual(file.header, b'')
-        self.assertEqual(file.data[:5], b'\x03\xd05\x00\xe6')
+        self.assertEqual(file.data[:5], b'\x01\xcf\xa6\x06\xe6')
         self.assertIsNone(file.start)
         self.assertIsNone(file.execute)
         self.assertIsNone(file.dir)

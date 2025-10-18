@@ -279,7 +279,7 @@ class File:
             # Uni-DOS over-allocates, should be entries*256 rounded up to 512?
             file._length = num_sectors * 512
         elif file.type == FileType.UNIDOS_CREATE:
-            file._length = num_sectors * 512
+            file._length = zx_length
         elif file.type == FileType.BASIC:
             file.start = sam_start
             file._length = sam_length
@@ -419,6 +419,8 @@ class File:
             data[212:212+2] = zx_length
         elif self.type == FileType.ZX_EXECUTE:
             data[212:212+2] = File.word_to_le(510)
+        elif self.type == FileType.UNIDOS_CREATE:
+            data[212:212+2] = zx_length
         elif self.type == FileType.BASIC:
             data[236:236+3] = sam_start
             data[239:239+3] = sam_length
