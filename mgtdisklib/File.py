@@ -466,11 +466,6 @@ class File:
 
         return bytes(data), disk_map
 
-    # Deprecated, use bootable propery instead, usually as Disk.bootable
-    def is_bootable(self) -> bool:
-        """Check whether the file would be bootable in the first directory slot"""
-        return self.bootable
-
     @staticmethod
     def type_has_data_header(type: FileType) -> bool:
         """Return whether a given file type uses a 9-byte file header"""

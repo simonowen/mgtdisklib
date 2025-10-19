@@ -80,12 +80,10 @@ class FileTests(unittest.TestCase):
     def test_bootable_samdos2(self):
         file = File.from_code_path(f'{TESTDIR}/samdos2')
         self.assertTrue(file.bootable)
-        self.assertTrue(file.is_bootable())  # deprecated
 
     def test_bootable_basic(self):
         file = Disk.open(f'{TESTDIR}/zx_basic_auto.mgt.gz').files[0]
         self.assertFalse(file.bootable)
-        self.assertFalse(file.is_bootable())  # deprecated
 
     def test_from_code_path(self):
         file = File.from_code_path(f'{TESTDIR}/samdos2')
