@@ -117,6 +117,7 @@ class File:
         self.basic_length: Optional[int] = None
         self.time: Optional[datetime] = None
         self.dir: Optional[int] = None
+        self.driver_pos: Optional[bytes] = None
         self.data_var: Optional[str] = None
         self.screen_mode: Optional[int] = None
         self.header = bytes()
@@ -291,6 +292,7 @@ class File:
             file._length = sam_length
 
         if file.type == FileType.DIR:
+            file.driver_pos = data[232:232+4]
             file.dir = data[250]
         elif File.is_sam_file_type(file.type) and data[254] not in (0x00, 0xff):
             file.dir = data[254]
@@ -381,7 +383,7 @@ class File:
         sam_datavar = (self.data_var or '')[:10]  # BASIC limit
         sam_screen_mode = ((self.screen_mode or 1) - 1) & 0x3
         sam_dir = self.dir or 0
-        # sam_driver_pos = self.driver_pos or bytes(4)
+        sam_driver_pos = self.driver_pos or bytes(4)
 
         if File.type_has_data_header(self.type) and File.is_sam_file_type(self.type):
             data[211] = self.type.value
@@ -447,6 +449,7 @@ class File:
             data[236:236+3] = sam_start
             data[239:239+3] = sam_length
         elif self.type == FileType.DIR:
+            data[232:232+4] = sam_driver_pos
             data[250] = sam_dir
         elif self.type == FileType.DRIVER_APP:
             data[236:236+3] = sam_start

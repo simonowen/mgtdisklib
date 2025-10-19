@@ -56,6 +56,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.execute)
         self.assertIsNone(file.time)
         self.assertIsNone(file.dir)
+        self.assertIsNone(file.driver_pos)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
 
@@ -1287,6 +1288,11 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
         self.assertFalse(file.bootable)
+
+    def test_type_dir_driver_pos(self):
+        file = Disk.open(f'{TESTDIR}/dir_driver.mgt.gz').files[0]
+        self.assertEqual(file.type, FileType.DIR)
+        self.assertEqual(file.driver_pos, b'\x21\x17\x40\x33')
 
     def test_type_dir_file(self):
         file = Disk.open(f'{TESTDIR}/dir.mgt.gz').files[1]
