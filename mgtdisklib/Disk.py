@@ -129,20 +129,25 @@ class Disk:
         image = self.to_image()
         image.save(path, compressed=compressed)
 
-    def to_image(self) -> Image:
+    def to_image(self, *, reserved_map: Optional[bitarray] = None) -> Image:
         """Generate MGT disk image from current contents"""
         image = MGTImage()
         timefmt = TimeFormat.BDOS if self.type is DiskType.BDOS else TimeFormat.MASTERDOS
 
-        dir_slot = 0
-        disk_sector_map = self.dir_sector_map
+        reserved_map = reserved_map or bitarray(1600, endian='little')
+        data_sector_map = reserved_map[4*10:] | self.dir_sector_map
+
+        dir_sector_map = reserved_map[:self.dir_tracks*10]
+        dir_sector_map |= (~self.dir_sector_map >> 4*10)[:self.dir_tracks*10]
+        dir_slot_map = bitarray(''.join([f'{x}{x}' for x in dir_sector_map]))
 
         for file in self.files:
-            slot_limit = Disk.dir_slots(self.dir_tracks)
-            if dir_slot >= slot_limit:
-                raise RuntimeError(f'too many files (>= {slot_limit}) for disk')
+            dir_slot = dir_slot_map.find(0)
+            if dir_slot < 0:
+                raise RuntimeError('too many files for disk')
+            dir_slot_map[dir_slot] = 1
 
-            entry, disk_sector_map = file.to_dir(disk_sector_map, timefmt=timefmt)
+            entry, data_sector_map = file.to_dir(data_sector_map, timefmt=timefmt)
             Disk.write_data(image, file)
             Disk.write_dir(image, dir_slot, entry)
             dir_slot += 1

@@ -186,6 +186,32 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(disk.type, disk2.type)
         self.assertEqual(disk.serial, disk2.serial)
 
+    def test_to_image_reserved_dir(self):
+        disk = Disk()
+        reserved_map = bitarray(1600, endian='little')
+        reserved_map[0:10] = 1
+        disk.add_code_file(f'{TESTDIR}/samdos2')
+        image = disk.to_image(reserved_map=reserved_map)
+        dir_data = image.read_sector(1, 1)
+        self.assertEqual(dir_data[1:1+7], 'samdos2'.encode('ascii'))
+        reserved_map[5] = 0
+        image = disk.to_image(reserved_map=reserved_map)
+        dir_data = image.read_sector(0, 6)
+        self.assertEqual(dir_data[1:1+7], 'samdos2'.encode('ascii'))
+
+    def test_to_image_reserved_data(self):
+        disk = Disk()
+        reserved_map = bitarray(1600, endian='little')
+        for t in range(4, 6, 1):
+            for s in range(10):
+                reserved_map[t * 10 + s] = 1
+        disk.add_code_file(f'{TESTDIR}/samdos2')
+        image = disk.to_image(reserved_map=reserved_map)
+        disk2 = Disk.from_image(image)
+        self.assertEqual(disk2.files[0]._first_sector, (6, 1))
+        data = image.read_sector(6, 1)
+        self.assertEqual(data[9:510], disk.files[0].data[:510-9])
+
     def test_bootable_empty(self):
         disk = Disk()
         self.assertFalse(disk.bootable)
