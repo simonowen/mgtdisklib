@@ -8,7 +8,7 @@ import os
 import struct
 from datetime import datetime
 from enum import Enum, IntEnum
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from bitarray import bitarray
 
@@ -97,9 +97,9 @@ class TimeFormat(Enum):
 class File:
     HEADER_SIZE = 9
 
-    __slots__ = ('entry', 'type', 'hidden', 'protected', 'name_raw', 'name', '_start_track', '_start_sector',
-                    '_sector_map', '_sectors', 'start', '_length', 'execute', 'basic_length', 'time', 'dir',
-                    'data_var', 'screen_mode', 'header', 'data')
+    __slots__ = ('entry', 'type', 'hidden', 'protected', 'name_raw', 'name', '_first_sector',
+                 'sector_map', '_sectors', 'start', '_length', 'execute', 'basic_length',
+                 'time', 'dir', 'driver_pos', 'data_var', 'screen_mode', 'header', 'data')
 
     def __init__(self) -> None:
         self.entry: bytes = bytes(256)
@@ -108,9 +108,8 @@ class File:
         self.protected: bool = False
         self.name_raw: bytes = bytes()
         self.name: str = ''
-        self._start_track: Optional[int] = None
-        self._start_sector: Optional[int] = None
-        self._sector_map: bitarray = bitarray(endian='little')
+        self._first_sector: Optional[Tuple[int, int]] = None
+        self.sector_map: bitarray = File.empty_sector_map()
         self._sectors: Optional[int] = None
         self.start: Optional[int] = None
         self._length: Optional[int] = None
@@ -158,19 +157,10 @@ class File:
         return str
 
     @property
-    def start_track(self) -> Optional[int]:
-        """Starting track (1-80)"""
-        return self._start_track
-
-    @property
-    def start_sector(self) -> Optional[int]:
-        """Starting sector (1-10, usually)"""
-        return self._start_sector
-
-    @property
-    def sector_map(self) -> bitarray:
-        """Sector map as bitarray of 1560 bits (80*2-4 tracks * 10 sectors)"""
-        return self._sector_map
+    def first_sector(self) -> Optional[Tuple[int, int]]:
+        """Tuple of first data track (1-80) and sector (1-10)"""
+        index = self.sector_map.find(1)
+        return File.index_to_sector(index) if index >= 0 else None
 
     @staticmethod
     def from_code_path(path: str, *, filename: Optional[str] = None, start: int = 0x8000,
@@ -204,8 +194,7 @@ class File:
 
         with open(path, 'rb') as f:
             file = File.from_dir(f.read(256))
-            if file.type != FileType.NONE:
-                file.data = f.read()
+            file.data = f.read()
             return file
 
     @staticmethod
@@ -220,9 +209,8 @@ class File:
         file.name_raw = data[1:1+10]
         file.name = file.name_raw.decode('ascii', errors='replace')[:10].rstrip(' \0')
         file._sectors = File.be_word(data[11:11+2])
-        file._start_track = data[13]
-        file._start_sector = data[14]
-        file._sector_map = bitarray(endian='little')
+        file._first_sector = data[13], data[14]
+        file.sector_map.clear()
         file.sector_map.frombytes(data[15:15+195])
         file.time = File.unpack_time(data[245:245+5]) if File.is_sam_file_type(file.type) else None
 
@@ -266,7 +254,6 @@ class File:
             file._length = zx_length
         elif file.type == FileType.SPECIAL:
             file._length = num_sectors * 512
-            #file.header = data[211:256] # all custom?
         elif file.type == FileType.ZX_SNP_128K:
             file._length = zx_length or 0x20001  # only Uni-DOS sets this
             # TODO: Z80 regs
@@ -308,6 +295,8 @@ class File:
         elif File.is_sam_file_type(file.type) and data[254] not in (0x00, 0xff):
             file.dir = data[254]
 
+        file.header = data[211:211+File.HEADER_SIZE] if File.type_has_data_header(file.type) else bytes()
+
         return file
 
     @property
@@ -334,31 +323,41 @@ class File:
 
     def save(self, path: str) -> None:
         """Export directory entry and file content for later"""
-        self.entry = self.to_dir()
+        self.entry, _ = self.to_dir()
 
         with open(path, 'wb') as f:
             f.write(self.entry)
-            if self.data:
-                f.write(self.data)
+            f.write(self.data)
 
-    def to_dir(self, start_track: int = 4, start_sector: int = 1,
-               timefmt: TimeFormat = TimeFormat.MASTERDOS) -> bytes:
-        """Create directory entry from current file data"""
+    def allocate(self, disk_map: Optional[bitarray] = None) -> bitarray:
+        """Allocate data sectors, updating start track/sector and map"""
+        if disk_map is None:
+            disk_map = File.empty_sector_map()
 
-        if self.type == FileType.NONE:
-            return self.entry
+        sector_map = File.empty_sector_map()
+        for _ in range(self.sectors):
+            index = disk_map.find(0)
+            if index < 0:
+                raise RuntimeError('out of disk space for {file.name}')
+            disk_map[index] = sector_map[index] = 1
 
-        sector_map = File.contig_sector_map(self.sectors, start_track, start_sector)
+        self.sector_map = sector_map
+        return disk_map
 
-        # Use original as a template until we support writing all fields.
+    def to_dir(self, disk_map: Optional[bitarray] = None,
+               timefmt: TimeFormat = TimeFormat.MASTERDOS) -> Tuple[bytes, bitarray]:
+        """Create directory entry for file, return updated sector map"""
+
+        disk_map = self.allocate(disk_map)
+
+        # Use original as a template in case of custom fields.
         data = bytearray(self.entry or bytes(256))
 
         data[0] = int(self.type) | (0x80 if self.hidden else 0) | (0x40 if self.protected else 0)
         data[1:1+10] = f'{self.name:10}'.encode('ascii', errors='replace')
         data[11:11+2] = File.word_to_be(self.sectors)
-        data[13] = start_track or 0
-        data[14] = start_sector or 0
-        data[15:15+195] = sector_map.tobytes()
+        data[13], data[14] = self.first_sector if self.first_sector else (0, 0)
+        data[15:15+195] = self.sector_map.tobytes()
 
         zx_tape_id = File.tape_id_from_type(self.type)
         zx_length = File.word_to_le(self.length or 0)
@@ -382,6 +381,15 @@ class File:
         sam_datavar = (self.data_var or '')[:10]  # BASIC limit
         sam_screen_mode = ((self.screen_mode or 1) - 1) & 0x3
         sam_dir = self.dir or 0
+        # sam_driver_pos = self.driver_pos or bytes(4)
+
+        if File.type_has_data_header(self.type) and File.is_sam_file_type(self.type):
+            data[211] = self.type.value
+            data[212:212+2] = File.len_to_triple(self.length)[1:]
+            data[214:214+2] = File.addr_to_triple(self.start)[1:]
+            data[216:216+2] = b'\xff\xff'
+            data[218] = File.len_to_triple(self.length)[0]
+            data[219] = File.addr_to_triple(self.start)[0]
 
         if self.type == FileType.ZX_BASIC:
             data[211] = zx_tape_id
@@ -412,7 +420,7 @@ class File:
             pass
         elif self.type == FileType.ZX_SNP_128K:
             data[210] = zx_snap_128k_len_hi
-            data[211:211+1] = b'\x10'  # TODO: check
+            data[211] = 0x10  # TODO: check
             data[212:212+2] = zx_snap_128k_len_lo
         elif self.type == FileType.OPENTYPE:
             data[210] = zx_length_64k
@@ -451,7 +459,9 @@ class File:
             data[245:245+5] = File.pack_time(self.time, timefmt)
             data[254] = sam_dir
 
-        return bytes(data)
+        self.header = data[211:211+File.HEADER_SIZE] if File.type_has_data_header(self.type) else bytes()
+
+        return bytes(data), disk_map
 
     # Deprecated, use bootable propery instead, usually as Disk.bootable
     def is_bootable(self) -> bool:
@@ -509,17 +519,54 @@ class File:
         return 512 if File.is_contig_data_type(type) else 510
 
     @staticmethod
-    def contig_sector_map(sectors: int, start_track: Optional[int], start_sector: Optional[int]) -> bitarray:
+    def empty_sector_map() -> bitarray:
+        """Create empty sector map of 1560 bits"""
+        return bitarray((80 * 2 - 4) * 10, endian='little')
+
+    @staticmethod
+    def index_to_sector(index: int) -> Tuple[int, int]:
+        """Convert sector map index to track and sector"""
+        if index < 0 or index >= 1560:
+            raise ValueError('sector index {index} out of range (0-1559)')
+
+        cyl = (4 + index // 10) % 80
+        side = 1 if (4 + index // 10 >= 80) else 0
+        track = (side << 7) | cyl
+        sector = 1 + (index % 10)
+        return track, sector
+
+    @staticmethod
+    def sector_list(sector_map: bitarray) -> List[Tuple[int, int]]:
+        """Returns list of (track, sector) tuples for a sector map"""
+        return [File.index_to_sector(i) for i in sector_map.search(bitarray('1'))]
+
+    @staticmethod
+    def contig_sector_map(sectors: int, start_pos: Tuple[int, int] = (4, 1),
+                          *, dir_tracks: int = 4) -> bitarray:
         """Generate sector map of contiguous sectors from a given position"""
-        if not start_track or not start_sector:
-            raise ValueError('missing start track and sector')
+        start_track, start_sector = start_pos
+        length = sectors
+
+        if dir_tracks < 4 or dir_tracks > 39:
+            raise ValueError('directory tracks {dir_tracks} out of range (4-39)')
+        elif (start_track < dir_tracks and start_pos != (4, 1)) or start_track > 207:
+            raise ValueError('start position {start_pos} is invalid')
         elif start_sector < 1 or start_sector > 10:
             raise ValueError('start sector {start_sector} out of range (1-10)')
         elif sectors < 0:
             raise ValueError('sectors must be non-negative')
-        sector_map = bitarray('0' * 1560, endian='little')
+
+        sector_map = File.empty_sector_map()
+
+        if dir_tracks > 4 and start_pos == (4, 1) and length > 0:
+            sector_map[0] = 1
+            length -= 1
+            start_track = dir_tracks
+
         offset = (start_track - 4 - (0 if start_track < 80 else (128 - 80))) * 10 + (start_sector - 1)
-        sector_map[offset:offset+sectors] = 1
+        sector_map[offset:offset+length] = 1
+        if sector_map.count(1) != sectors:
+            raise ValueError('not enough space for {sectors} sectors')
         return sector_map
 
     @staticmethod

@@ -62,6 +62,14 @@ class Disk:
         """Combined Bitmap Address Map for all files"""
         return functools.reduce(operator.or_, (file.sector_map for file in self.files))
 
+    @property
+    def dir_sector_map(self) -> bitarray:
+        """Sector map for extended directory area (dir_tracks > 4)"""
+        dir_map = File.empty_sector_map()
+        if self.dir_tracks > 4:
+            dir_map[1:((self.dir_tracks - 4) * 10)] = 1
+        return dir_map
+
     @staticmethod
     def open(path: str) -> 'Disk':
         """Load disk from disk image file"""
@@ -94,13 +102,7 @@ class Disk:
             entry = Disk.read_dir(image, i)
             file = File.from_dir(entry)
             if file.type:
-                if file.start_track and file.start_sector:
-                    header_size = File.type_header_size(file.type)
-                    file_size = header_size + (file._length or 0)
-                    file.data = Disk.read_data(image, file.type, file_size, file.start_track, file.start_sector)
-                    if File.type_has_data_header(file.type):
-                        file.header = file.data[:header_size]
-                        file.data = file.data[header_size:]
+                Disk.read_data(image, file)
                 disk.files.append(file)
             elif not file.name_raw[1]:
                 break
@@ -130,23 +132,25 @@ class Disk:
     def to_image(self) -> Image:
         """Generate MGT disk image from current contents"""
         image = MGTImage()
-        track, sector = self.dir_tracks, 1
-        index = 0
         timefmt = TimeFormat.BDOS if self.type is DiskType.BDOS else TimeFormat.MASTERDOS
 
+        dir_slot = 0
+        disk_sector_map = self.dir_sector_map
+
         for file in self.files:
-            if index >= self.dir_tracks * 10 * 2:
-                raise RuntimeError(f'too many files (>= {self.dir_tracks * 10 * 2}) for directory')
-            entry = file.to_dir(track, sector, timefmt=timefmt)
-            data = file.data
-            if File.type_has_data_header(file.type):
-                data = file.entry[0xd3:0xd3+File.HEADER_SIZE] + data
-            track, sector = Disk.write_data(image, file.type, track, sector, data)
-            Disk.write_dir(image, index, entry)
-            index += 1
+            slot_limit = Disk.dir_slots(self.dir_tracks)
+            if dir_slot >= slot_limit:
+                raise RuntimeError(f'too many files (>= {slot_limit}) for disk')
+
+            entry, disk_sector_map = file.to_dir(disk_sector_map, timefmt=timefmt)
+            Disk.write_data(image, file)
+            Disk.write_dir(image, dir_slot, entry)
+            dir_slot += 1
 
         entry0 = bytearray(image.read_sector(0, 1))
-        if self.type is DiskType.MASTERDOS:
+        if self.type is DiskType.SAMDOS:
+            entry0[210] = 0
+        elif self.type is DiskType.MASTERDOS:
             if self.label:
                 entry0[210:210+10] = bytes(self.label.ljust(10), 'ascii')[:10]
             else:
@@ -240,38 +244,44 @@ class Disk:
         image.write_sector(track, sector, bytes(data))
 
     @staticmethod
-    def read_data(image: Image, type: FileType, length: int, track: int, sector: int) -> bytes:
+    def read_data(image: Image, file: File) -> bytes:
         """Read file data"""
+
+        chunk_size = File.data_bytes_per_sector(file.type)
+        header_size = File.type_header_size(file.type)
+        length = header_size + (file._length or 0)
+
         data = b''
-        chunk_size = File.data_bytes_per_sector(type)
+        for track, sector in File.sector_list(file.sector_map):
+            chunk = image.read_sector(track, sector)
+            if chunk_size == 512:
+                data += chunk
+            else:
+                data += chunk[:-2]
 
-        try:
-            while len(data) < length:
-                chunk = image.read_sector(track, sector)
-                if chunk_size == 512:
-                    data += chunk
-                    track, sector = Disk.next_sector(track, sector)
-                else:
-                    data += chunk[:-2]
-                    track, sector = chunk[-2:]
-        except ValueError:
-            pass
-
-        return data[:length]
+        file.header = data[:header_size]
+        file.data = data[header_size:length]
+        return file.data
 
     @staticmethod
-    def write_data(image: Image, type: FileType, track: int, sector: int, data: bytes) -> Tuple[int, int]:
-        """Write file data, returning next unused sector location"""
-        chunk_size = File.data_bytes_per_sector(type)
+    def write_data(image: Image, file: File) -> None:
+        """Write file data"""
+        chunk_size = File.data_bytes_per_sector(file.type)
+
+        if len(file.header) != File.type_header_size(file.type):
+            raise RuntimeError('file header size does not match file type')
+        data = file.header + file.data
+
+        if file.sector_map.count() != file.sectors:
+            raise RuntimeError('file sector map does not match sector count')
+        data_sectors = File.sector_list(file.sector_map)
+        track, sector = data_sectors.pop(0)
 
         while len(data) > 0:
+            next_track, next_sector = data_sectors.pop(0) if data_sectors else (0, 0)
+
             chunk = data[:chunk_size] + b'\0'*(chunk_size - len(data))
             data = data[chunk_size:]
-
-            try:
-                next_track, next_sector = Disk.next_sector(track, sector)
-            except ValueError:
-                raise RuntimeError('data area is out of space')
 
             if chunk_size == 512:
                 pass
@@ -282,18 +292,3 @@ class Disk:
 
             image.write_sector(track, sector, chunk)
             track, sector = next_track, next_sector
-
-        return track, sector
-
-    @staticmethod
-    def next_sector(track: int, sector: int) -> Tuple[int, int]:
-        """Determine next sector position after given sector"""
-        if track < 0 or (track & 0x7f) >= 80 or sector < 1 or sector > 10:
-            raise ValueError(f'invalid sector position (track {track} sector {sector})')
-        sector += 1
-        if sector > 10:
-            sector = 1
-            track += 1
-            if track == 80:
-                track = 128
-        return track, sector

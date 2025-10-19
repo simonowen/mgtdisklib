@@ -48,9 +48,8 @@ class FileTests(unittest.TestCase):
         self.assertFalse(file.protected)
         self.assertEqual(file.name_raw, bytes())
         self.assertEqual(file.name, '')
-        self.assertIsNone(file.start_track)
-        self.assertIsNone(file.start_sector)
-        self.assertEqual(file.sector_map, bitarray(endian='little'))
+        self.assertIsNone(file.first_sector)
+        self.assertEqual(file.sector_map, File.empty_sector_map())
         self.assertEqual(file.sectors, 0)
         self.assertIsNone(file.start)
         self.assertEqual(file.length, 0)
@@ -90,7 +89,6 @@ class FileTests(unittest.TestCase):
     def test_from_code_path(self):
         file = File.from_code_path(f'{TESTDIR}/samdos2')
 
-        self.assertEqual(file.header, b'')
         self.assertEqual(file.type, FileType.CODE)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -108,7 +106,6 @@ class FileTests(unittest.TestCase):
     def test_from_code_path_params(self):
         file = File.from_code_path(f'{TESTDIR}/samdos2', filename='altname', start=123456, execute=54321)
 
-        self.assertEqual(file.header, b'')
         self.assertEqual(file.type, FileType.CODE)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -127,7 +124,6 @@ class FileTests(unittest.TestCase):
         with open(f'{TESTDIR}/samdos2', 'rb') as f:
             file = File.from_code_bytes(f.read(), 'altname')
 
-        self.assertEqual(file.header, b'')
         self.assertEqual(file.type, FileType.CODE)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -146,7 +142,6 @@ class FileTests(unittest.TestCase):
         with open(f'{TESTDIR}/samdos2', 'rb') as f:
             file = File.from_code_bytes(f.read(), 'altname', start=123456, execute=54321)
 
-        self.assertEqual(file.header, b'')
         self.assertEqual(file.type, FileType.CODE)
         self.assertFalse(file.hidden)
         self.assertFalse(file.protected)
@@ -164,6 +159,7 @@ class FileTests(unittest.TestCase):
     def test_from_path_none(self):
         file = File.from_path(f'{TESTDIR}/none.file')
         self.assertEqual(file.type, FileType.NONE)
+        self.assertEqual(file.header, bytes())
         self.assertEqual(file.data, bytes())
 
     def test_from_path(self):
@@ -171,7 +167,7 @@ class FileTests(unittest.TestCase):
         with open(f'{TESTDIR}/samdos2', 'rb') as f:
             data = f.read()
 
-        self.assertEqual(file.header, b'')
+        self.assertEqual(file.header, b'\x13\x10\x27\x09\x80\xff\xff\x00\x1d')
         self.assertEqual(len(file.data), 10000)
         self.assertEqual(file.data, data)
         self.assertEqual(file.type, FileType.CODE)
@@ -180,9 +176,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.name, 'samdos2')
         self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
         self.assertEqual(file.sectors, 20)
-        self.assertEqual(file.start_track, 4)
-        self.assertEqual(file.start_sector, 1)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.start, 491529)
         self.assertEqual(file.length, 10000)
         self.assertIsNone(file.execute)
@@ -197,7 +192,7 @@ class FileTests(unittest.TestCase):
         file = File.from_dir(data[:256])
         file.data = data[256:]
 
-        self.assertEqual(file.header, b'')
+        self.assertEqual(file.header, b'\x13\x10\x27\x09\x80\xff\xff\x00\x1d')
         self.assertEqual(len(file.data), file._length)
         self.assertEqual(file.entry, data[:256])
         self.assertEqual(file.type, FileType.CODE)
@@ -206,9 +201,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.name, 'samdos2')
         self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
         self.assertEqual(file.sectors, 20)
-        self.assertEqual(file.start_track, 4)
-        self.assertEqual(file.start_sector, 1)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.start, 491529)
         self.assertEqual(file.length, 10000)
         self.assertIsNone(file.execute)
@@ -233,11 +227,24 @@ class FileTests(unittest.TestCase):
                 data_golden = f.read()
             with open(temp_path, 'rb') as f:
                 data = f.read()
+        self.assertEqual(len(data), len(data_golden))
         self.assertEqual(data, data_golden)
 
     def test_to_dir(self):
         file = File()
-        self.assertEqual(File.to_dir(file), bytes(256))
+        dir, sector_map = file.to_dir()
+        self.assertEqual(sector_map, File.empty_sector_map())
+        self.assertEqual(dir, bytes(1) + bytes(b' '*10) + bytes(256-11))
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
+
+    def test_to_dir_none(self):
+        file = File()
+        file.type = FileType.NONE
+        dir, sector_map = file.to_dir()
+        self.assertEqual(dir[0], FileType.NONE)
+        self.assertNotEqual(dir[1], 0)
+        self.assertEqual(sector_map, File.empty_sector_map())
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
 
     def test_to_dir_zx_basic(self):
         file = File()
@@ -246,14 +253,16 @@ class FileTests(unittest.TestCase):
         file.start = 0x5678
         file.basic_length = 0x9abc
         file.execute = None
-        dir = file.to_dir()
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[211], File.tape_id_from_type(file.type))
         self.assertEqual(dir[212:212+2], File.word_to_le(file.length))
         self.assertEqual(dir[214:214+2], File.word_to_le(file.start))
         self.assertEqual(dir[216:216+2], File.word_to_le(file.basic_length))
         self.assertEqual(dir[218:218+2], File.word_to_le(0xffff))
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
         file.execute = 0x0123
-        dir = file.to_dir()
+        dir, _ = file.to_dir()
         self.assertEqual(dir[218:218+2], File.word_to_le(file.execute))
 
     def test_to_dir_zx_data(self):
@@ -262,11 +271,13 @@ class FileTests(unittest.TestCase):
         file.data = bytes(0x1234)
         file.start = 0x5678
         file.data_var = 'x'
-        dir = file.to_dir()
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[211], File.tape_id_from_type(file.type))
         self.assertEqual(dir[212:212+2], File.word_to_le(file.length))
         self.assertEqual(dir[214:214+2], File.word_to_le(file.start))
         self.assertEqual(dir[216], ord(file.data_var) - ord('a') + 1)
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
 
     def test_to_dir_zx_data_str(self):
         file = File()
@@ -274,11 +285,13 @@ class FileTests(unittest.TestCase):
         file.data = bytes(0x1234)
         file.start = 0x5678
         file.data_var = 'x'
-        dir = file.to_dir()
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[211], File.tape_id_from_type(file.type))
         self.assertEqual(dir[212:212+2], File.word_to_le(file.length))
         self.assertEqual(dir[214:214+2], File.word_to_le(file.start))
         self.assertEqual(dir[216], ord(file.data_var) - ord('a') + 1)
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
 
     def test_to_dir_zx_code(self):
         file = File()
@@ -286,62 +299,78 @@ class FileTests(unittest.TestCase):
         file.data = bytes(0x1234)
         file.start = 0x5678
         file.execute = 0x9abc
-        dir = file.to_dir()
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[212:212+2], File.word_to_le(file.length))
         self.assertEqual(dir[214:214+2], File.word_to_le(file.start))
         self.assertEqual(dir[218:218+2], File.word_to_le(file.execute))
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
         file.execute = None
-        dir = file.to_dir()
+        dir, _ = file.to_dir()
         self.assertEqual(dir[218:218+2], File.word_to_le(0x0000))
 
     def test_to_dir_zx_snp_48k(self):
         file = File()
         file.type = FileType.ZX_SNP_48K
         file.data = bytes(0x1234)  # length ignored
-        dir = file.to_dir()
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[211], File.tape_id_from_type(file.type))
         self.assertEqual(dir[212:212+2], File.word_to_le(0xc000))  # fixed length
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
 
     def test_to_dir_mdrv(self):
         file = File()
         file.type = FileType.ZX_MDRV
-        dir = file.to_dir()
+        file.data = bytes(0x1234)
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[210:256], file.entry[210:256])
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
 
     def test_to_dir_zx_screen(self):
         file = File()
         file.type = FileType.ZX_SCREEN
         file.data = bytes(0x1234)  # length ignored
         file.start = 0x5678  # address ignored
-        dir = file.to_dir()
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[211], File.tape_id_from_type(file.type))
         self.assertEqual(dir[212:212+2], File.word_to_le(0x1b00))
         self.assertEqual(dir[214:214+2], File.word_to_le(0x4000))
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
 
     def test_to_dir_special(self):
         file = File()
         file.type = FileType.SPECIAL
-        dir = file.to_dir()
+        file.data = bytes(0x1234)
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[210:256], file.entry[210:256])
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
 
     def test_to_dir_zx_snp_128k(self):
         file = File()
         file.type = FileType.ZX_SNP_128K
         file.data = bytes(0x1234)  # length ignored
-        dir = file.to_dir()
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[210], 0x20001 >> 16)  # fixed length high byte
         self.assertEqual(dir[211], 0x10)  # TODO: check
         self.assertEqual(dir[212:212+2], File.word_to_le(0x20001 & 0xffff))  # fixed length
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
 
     def test_to_dir_opentype(self):
         file = File()
         file.type = FileType.OPENTYPE
         file.data = bytes(0x1234)
-        dir = file.to_dir()
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[210], file.length >> 16)
         self.assertEqual(dir[212:212+2], File.word_to_le(file.length & 0xffff))
-        file.data = bytes(0x123456)
-        dir = file.to_dir()
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
+        file.data = bytes(0x12345)
+        dir, _ = file.to_dir()
         self.assertEqual(dir[210], file.length >> 16)
         self.assertEqual(dir[212:212+2], File.word_to_le(file.length & 0xffff))
 
@@ -349,62 +378,81 @@ class FileTests(unittest.TestCase):
         file = File()
         file.type = FileType.ZX_EXECUTE
         file.data = bytes(0x1234)  # length ignored
-        dir = file.to_dir()
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[212:212+2], File.word_to_le(510))
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
+
+    def test_to_dir_unidos_create(self):
+        file = File()
+        file.type = FileType.UNIDOS_CREATE
+        file.data = bytes(0x1234)
+        dir, sector_map = file.to_dir()
+        self.assertEqual(dir[212:212+2], File.word_to_le(0x1234))
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
 
     def test_to_dir_basic(self):
         file = File()
         file.type = FileType.BASIC
         file.start = 0x123456
-        file.data = bytes(0x234567)
+        file.data = bytes(0x54321)
         file.execute = None
-        dir = file.to_dir()
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
         self.assertEqual(dir[239:239+3], File.len_to_triple(file.length))
         self.assertEqual(dir[242:242+3], File.line_to_triple(file.execute))
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
         file.execute = 0x4321
-        dir = file.to_dir()
+        dir, _ = file.to_dir()
         self.assertEqual(dir[242:242+3], File.line_to_triple(file.execute))
 
     def test_to_dir_data(self):
         file = File()
         file.type = FileType.DATA
         file.start = 0x123456
-        file.data = bytes(0x234567)
+        file.data = bytes(0x54321)
         file.data_var = 'abcde'
-        dir = file.to_dir()
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[221] & 0xf, len(file.data_var))
         self.assertEqual(dir[222:222+len(file.data_var)], bytes(file.data_var, 'ascii'))
         self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
         self.assertEqual(dir[239:239+3], File.len_to_triple(file.length))
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
 
     def test_to_dir_data_str(self):
         file = File()
         file.type = FileType.DATA_STR
         file.start = 0x123456
-        file.data = bytes(0x234567)
+        file.data = bytes(0x54321)
         file.data_var = 'zyx'
-        dir = file.to_dir()
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[221] & 0xf, len(file.data_var))
         self.assertEqual(dir[222:222+len(file.data_var)], bytes(file.data_var, 'ascii'))
         self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
         self.assertEqual(dir[239:239+3], File.len_to_triple(file.length))
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
 
     def test_to_dir_code(self):
         file = File()
         file.type = FileType.CODE
         file.start = 0x123456
-        file.data = bytes(0x234567)
+        file.data = bytes(0x54321)
         file.execute = None
         file.dir = 123
-        dir = file.to_dir()
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
         self.assertEqual(dir[239:239+3], File.len_to_triple(file.length))
         self.assertEqual(dir[242:242+3], File.exec_to_triple(file.execute))
         self.assertEqual(dir[254], 123)
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
         file.execute = 0x12345
         file.dir = None
-        dir = file.to_dir()
+        dir, _ = file.to_dir()
         self.assertEqual(dir[242:242+3], File.exec_to_triple(file.execute))
         self.assertEqual(dir[254], 0)
 
@@ -413,45 +461,55 @@ class FileTests(unittest.TestCase):
         file.type = FileType.SCREEN
         file.screen_mode = 1
         file.start = 0x123456
-        file.data = bytes(0x234567)
-        dir = file.to_dir()
+        file.data = bytes(0x54321)
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[221], file.screen_mode - 1)
         self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
         self.assertEqual(dir[239:239+3], File.len_to_triple(file.length))
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
         file.screen_mode = 2
-        dir = file.to_dir()
+        dir, _ = file.to_dir()
         self.assertEqual(dir[221], file.screen_mode - 1)
         file.screen_mode = 3
-        dir = file.to_dir()
+        dir, _ = file.to_dir()
         self.assertEqual(dir[221], file.screen_mode - 1)
         file.screen_mode = 4
-        dir = file.to_dir()
+        dir, _ = file.to_dir()
         self.assertEqual(dir[221], file.screen_mode - 1)
 
     def test_to_dir_dir(self):
         file = File()
         file.type = FileType.DIR
         file.dir = 42
-        dir = file.to_dir()
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[250], file.dir)
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertIsNone(file.first_sector)
+        self.assertEqual(file.sector_map, File.empty_sector_map())
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
 
     def test_to_dir_driver_app(self):
         file = File()
         file.type = FileType.DRIVER_APP
         file.start = 0x123456
-        file.data = bytes(0x234567)
-        dir = file.to_dir()
+        file.data = bytes(0x54321)
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
         self.assertEqual(dir[239:239+3], File.len_to_triple(file.length))
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
 
     def test_to_dir_driver_boot(self):
         file = File()
         file.type = FileType.DRIVER_BOOT
         file.start = 0x123456
-        file.data = bytes(0x234567)
-        dir = file.to_dir()
+        file.data = bytes(0x54321)
+        dir, sector_map = file.to_dir()
         self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
         self.assertEqual(dir[239:239+3], File.len_to_triple(file.length))
+        self.assertEqual(sector_map.count(1), file.sectors)
+        self.assertEqual(len(file.header), File.type_header_size(file.type))
 
     def test_unpack_triple(self):
         self.assertEqual(File.unpack_triple(b'\x00\x00\x00'), (0x00, 0x0000))
@@ -614,7 +672,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 1)
         self.assertEqual(file.start, 23755)
         self.assertEqual(file.length, 78)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x00\x4e\x00\xcb\x5c\x1a\x00\xff\xff')
         self.assertEqual(file.data[:2], b'\x00\x0a')
         self.assertIsNone(file.execute)
@@ -636,7 +695,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.start, 23755)
         self.assertEqual(file.length, 189)
         self.assertEqual(file.execute, 1234)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x00\xbd\x00\xcb\x5c\xbd\x00\xd2\x04')
         self.assertEqual(file.data[:2], b'\x00\x0a')
         self.assertIsNone(file.dir)
@@ -656,7 +716,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 1)
         self.assertEqual(file.start, 23874)
         self.assertEqual(file.length, 53)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x01\x35\x00\x42\x5d\x98\xff\xff\xff')
         self.assertEqual(file.data[:8], b'\x01\x0a\x00\x00\x00\x7b\x00\x00')
         self.assertEqual(file.data_var, 'x')
@@ -677,7 +738,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 1)
         self.assertEqual(file.start, 23816)
         self.assertEqual(file.length, 8)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x02\x08\x00\x08\x5d\xd8\xff\xff\xff')
         self.assertEqual(file.data[:8], b'\x01\x05\x00abcde')
         self.assertEqual(file.data_var, 'x')
@@ -698,7 +760,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 1)
         self.assertEqual(file.start, 23858)
         self.assertEqual(file.length, 55)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x02\x37\x00\x32\x5d\xd8\xff\xff\xff')
         self.assertEqual(file.data[:25], b'\x02\x05\x00\x0a\x00hello     world     ')
         self.assertEqual(file.data_var, 'x')
@@ -719,7 +782,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 47)
         self.assertEqual(file.start, 0x8000)
         self.assertEqual(file.length, 23456)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x03\xa0\x5b\x00\x80\xff\xff\x00\x00')
         self.assertEqual(file.data[:4], b'\x3e\x02\xd3\xfe')
         self.assertIsNone(file.execute)
@@ -741,7 +805,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.start, 0x8000)
         self.assertEqual(file.length, 5)
         self.assertEqual(file.execute, 0x8000)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x03\x05\x00\x00\x80\xff\xff\x00\x80')
         self.assertEqual(file.data[:4], b'\x3e\x02\xd3\xfe')
         self.assertIsNone(file.dir)
@@ -760,7 +825,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
         self.assertEqual(file.sectors, 97)
         self.assertEqual(file.length, 0xc000)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'')
         self.assertEqual(file.data[49151], 123)
         self.assertIsNone(file.data_var)
@@ -786,7 +852,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 14)
         self.assertEqual(file.start, 16384)
         self.assertEqual(file.length, 6912)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x03\x00\x1b\x00\x40\x00\x00\xff\xff')
         self.assertEqual(file.data[0x17ff], 0x00)
         self.assertEqual(file.data[0x1800], 0x38)
@@ -807,7 +874,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
         self.assertEqual(file.sectors, 1440)
         self.assertEqual(file.length, 737280)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (16, 1))
+        self.assertEqual(file.sector_map, bitarray('0'*(16-4)*10 + '1'*1440))
         self.assertEqual(file.header, b'')
         self.assertEqual(file.data, b'\xe5' * 737280)
         self.assertIsNone(file.data_var)
@@ -828,7 +896,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
         self.assertEqual(file.sectors, 258)
         self.assertEqual(file.length, 0x4000*8+1)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'')
         self.assertEqual(file.data[0], 16)
         self.assertEqual([file.data[i*0x4000] for i in range(1, 8)], list(range(16, 16+7)))
@@ -850,7 +919,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
         self.assertEqual(file.sectors, 24)
         self.assertEqual(file.length, 26*10*47)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'')
         self.assertEqual(file.data[:47], b'A0 the quick brown fox jumps over the lazy dog.')
         self.assertEqual(file.data[file.length-47:file.length], b'Z9 the quick brown fox jumps over the lazy dog.')
@@ -872,7 +942,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
         self.assertEqual(file.sectors, 1)
         self.assertEqual(file.length, 510)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'')
         self.assertEqual(file.data[:4], b'\x3e\x02\xd3\xfe')
         self.assertEqual(file.data[4:file.length-1], bytes(file.length-5))
@@ -895,7 +966,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
         self.assertEqual(file.sectors, 24)
         self.assertEqual(file.length, file.sectors * 512)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'')
         self.assertEqual(file.entry[213], 20)  # dir entries
         self.assertEqual(file.data[:5], b'\x07file')
@@ -918,7 +990,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
         self.assertEqual(file.sectors, 4)
         self.assertEqual(file.length, 0x06aa)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'')
         self.assertEqual(file.data[:5], b'\x01\xcf\xa6\x06\xe6')
         self.assertIsNone(file.start)
@@ -940,7 +1013,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 2)
         self.assertEqual(file.length, 682)
         self.assertEqual(file.start, 23765)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x10\xaa\x02\xd5\x9c\xff\xff\x00\x00')
         self.assertEqual(file.data[:2], b'\x00\x0a')
         self.assertEqual(file.data[file.length-43:file.length], b'the quick brown fox jumps over the lazy dog')
@@ -963,7 +1037,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.length, 625)
         self.assertEqual(file.start, 23765)
         self.assertEqual(file.execute, 12345)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x10\x71\x02\xd5\x9c\xff\xff\x00\x00')
         self.assertEqual(file.data[:2], b'\x00\x0a')
         self.assertIsNone(file.data_var)
@@ -983,7 +1058,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 1)
         self.assertEqual(file.start, 24493)
         self.assertEqual(file.length, 67)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x11\x43\x00\xad\x9f\xff\xff\x00\x00')
         self.assertEqual(file.data[1:1+3], b'abc')
         self.assertEqual(file.data_var, 'abc')
@@ -1004,7 +1080,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 1)
         self.assertEqual(file.start, 24476)
         self.assertEqual(file.length, 69)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x12\x45\x00\x9c\x9f\xff\xff\x00\x00')
         self.assertEqual(file.data[1:1+4], b'abc$')
         self.assertEqual(file.data_var, 'abc')
@@ -1025,7 +1102,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 1)
         self.assertEqual(file.start, 24412)
         self.assertEqual(file.length, 26)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x12\x1a\x00\x5c\x9f\xff\xff\x00\x00')
         self.assertEqual(file.data[1:1+4], b'abc$')
         self.assertEqual(file.data_var, 'abc')
@@ -1046,7 +1124,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 1)
         self.assertEqual(file.start, 0x8000)
         self.assertEqual(file.length, 5)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x13\x05\x00\x00\x80\xff\xff\x00\x61')
         self.assertEqual(file.data[:5], b'\x3e\x02\xd3\xfe\xc9')
         self.assertIsNone(file.execute)
@@ -1068,7 +1147,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.start, 0x8000)
         self.assertEqual(file.length, 5)
         self.assertEqual(file.execute, 0x8000)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x13\x05\x00\x00\x80\xff\xff\x00\x61')
         self.assertEqual(file.data[:5], b'\x3e\x02\xd3\xfe\xc9')
         self.assertIsNone(file.dir)
@@ -1088,7 +1168,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 14)
         self.assertEqual(file.start, 507904)
         self.assertEqual(file.length, 6912+41)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x14\x29\x1b\x00\x80\xff\xff\x00\x1e')
         self.assertEqual(file.data[0x17ff], 0x00)
         self.assertEqual(file.data[0x1800], 0x38)
@@ -1110,7 +1191,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 29)
         self.assertEqual(file.start, 507904)
         self.assertEqual(file.length, 14336+41)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x14\x29\x38\x00\x80\xff\xff\x00\x3e')
         self.assertEqual(file.data[0x17ff], 0x00)
         self.assertEqual(file.data[0x1fff], 0x00)
@@ -1135,7 +1217,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 49)
         self.assertEqual(file.start, 507904)
         self.assertEqual(file.length, 24576+41)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x14\x29\x20\x00\x80\xff\xff\x01\x5e')
         self.assertEqual(file.data[0], 0xff)
         self.assertEqual(file.data[0x5fff], 0xff)
@@ -1158,7 +1241,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 49)
         self.assertEqual(file.start, 507904)
         self.assertEqual(file.length, 24576+41)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x14\x29\x20\x00\x80\xff\xff\x01\x7e')
         self.assertEqual(file.data[0], 0x77)
         self.assertEqual(file.data[0x5fff], 0x77)
@@ -1195,7 +1279,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 0)
         self.assertIsNone(file.start)
         self.assertEqual(file.length, 0)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, 4, 1))
+        self.assertIsNone(file.first_sector)
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.time, datetime(2025, 10, 4, 0, 48))
         self.assertEqual(file.dir, 1)
         self.assertIsNone(file.execute)
@@ -1220,7 +1305,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 21)
         self.assertEqual(file.start, 0x8000)
         self.assertEqual(file.length, 10240)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x16\x00\x28\x00\x80\xff\xff\x00\x01')
         self.assertEqual(file.data[:3], b'\xc3\x23\x0a')
         self.assertEqual(file.data[0xf0:0xf0+11], b'Alarm Clock')
@@ -1242,7 +1328,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 1)
         self.assertEqual(file.start, 32000)
         self.assertEqual(file.length, 500)
-        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors, file.start_track, file.start_sector))
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x17\xf4\x01\x00\xbd\xff\xff\x00\x00')
         self.assertEqual(file.data[:10], b'\x00bootstrap')
         self.assertEqual(file.time, datetime(1995, 4, 17, 16, 14))
@@ -1271,35 +1358,111 @@ class FileTests(unittest.TestCase):
         self.assertEqual(File.pack_time(datetime(2000, 1, 1, 0, 0, 0), TimeFormat.BDOS17), b'\x01\x88\x64\x00\x00')
         self.assertEqual(File.pack_time(datetime(2079, 12, 31, 23, 59, 58), TimeFormat.BDOS17), b'\x1f\xe0\xb3\xbb\xfd')
 
-    def test_contig_sector_map_params(self):
-        self.assertRaises(ValueError, File.contig_sector_map, -1, 4, 1)
-        self.assertRaises(ValueError, File.contig_sector_map, 1, None, 1)
-        self.assertRaises(ValueError, File.contig_sector_map, 1, 4, None)
-        self.assertRaises(ValueError, File.contig_sector_map, 1, 4, 11)
-    
-    def test_config_sector_map_start(self):
-        self.assertEqual(File.contig_sector_map(0, 4, 1)[:10], bitarray('0000000000'))
-        self.assertEqual(File.contig_sector_map(1, 4, 1)[:10], bitarray('1000000000'))
-        self.assertEqual(File.contig_sector_map(2, 4, 1)[:10], bitarray('1100000000'))
-        self.assertEqual(File.contig_sector_map(3, 4, 1)[:10], bitarray('1110000000'))
-        self.assertEqual(File.contig_sector_map(4, 4, 1)[:10], bitarray('1111000000'))
-        self.assertEqual(File.contig_sector_map(5, 4, 1)[:10], bitarray('1111100000'))
-        self.assertEqual(File.contig_sector_map(6, 4, 1)[:10], bitarray('1111110000'))
-        self.assertEqual(File.contig_sector_map(7, 4, 1)[:10], bitarray('1111111000'))
-        self.assertEqual(File.contig_sector_map(8, 4, 1)[:10], bitarray('1111111100'))
-        self.assertEqual(File.contig_sector_map(9, 4, 1)[:10], bitarray('1111111110'))
+    def test_data_bytes_per_sector(self):
+        self.assertEqual(File.data_bytes_per_sector(FileType.NONE), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.ZX_BASIC), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.ZX_DATA), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.ZX_DATA_STR), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.ZX_CODE), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.ZX_SNP_48K), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.ZX_MDRV), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.ZX_SCREEN), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.SPECIAL), 512)
+        self.assertEqual(File.data_bytes_per_sector(FileType.ZX_SNP_128K), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.OPENTYPE), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.ZX_EXECUTE), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.UNIDOS_DIR), 512)
+        self.assertEqual(File.data_bytes_per_sector(FileType.UNIDOS_CREATE), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.BASIC), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.DATA), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.DATA_STR), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.CODE), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.SCREEN), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.DIR), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.DRIVER_APP), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.DRIVER_BOOT), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.EDOS_NOMEN), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.EDOS_SYSTEM), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.EDOS_OVERLAY), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.HDOS_DOS), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.HDOS_DIR), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.HDOS_DISK), 510)
+        self.assertEqual(File.data_bytes_per_sector(FileType.HDOS_TEMP), 510)
 
-    def test_config_sector_map_offset(self):
-        self.assertEqual(File.contig_sector_map(8, 4, 1)[:18], bitarray('111111110000000000'))
-        self.assertEqual(File.contig_sector_map(8, 4, 2)[:18], bitarray('011111111000000000'))
-        self.assertEqual(File.contig_sector_map(8, 4, 3)[:18], bitarray('001111111100000000'))
-        self.assertEqual(File.contig_sector_map(8, 4, 4)[:18], bitarray('000111111110000000'))
-        self.assertEqual(File.contig_sector_map(8, 4, 5)[:18], bitarray('000011111111000000'))
-        self.assertEqual(File.contig_sector_map(8, 4, 6)[:18], bitarray('000001111111100000'))
-        self.assertEqual(File.contig_sector_map(8, 4, 7)[:18], bitarray('000000111111110000'))
-        self.assertEqual(File.contig_sector_map(8, 4, 8)[:18], bitarray('000000011111111000'))
-        self.assertEqual(File.contig_sector_map(8, 4, 9)[:18], bitarray('000000001111111100'))
-        self.assertEqual(File.contig_sector_map(8, 4, 10)[:18], bitarray('000000000111111110'))
+    def test_empty_sector_map(self):
+        self.assertEqual(File.empty_sector_map(), bitarray(1560))
+
+    def test_index_to_sector(self):
+        self.assertEqual(File.index_to_sector(0), (4, 1))
+        self.assertEqual(File.index_to_sector(1), (4, 2))
+        self.assertEqual(File.index_to_sector(10), (5, 1))
+        self.assertEqual(File.index_to_sector(1559), (207, 10))
+        self.assertRaises(ValueError, File.index_to_sector, -1)
+        self.assertRaises(ValueError, File.index_to_sector, 1560)
+
+    def test_sector_list(self):
+        self.assertEqual(File.sector_list(bitarray()), [])
+        self.assertEqual(File.sector_list(bitarray('0')), [])
+        self.assertEqual(File.sector_list(bitarray('1')), [(4, 1)])
+        self.assertEqual(File.sector_list(bitarray('10')), [(4, 1)])
+        self.assertEqual(File.sector_list(bitarray('01')), [(4, 2)])
+        self.assertEqual(File.sector_list(bitarray('101')), [(4, 1), (4, 3)])
+        self.assertEqual(File.sector_list(bitarray('0' * 759 + '11')), [(79, 10), (128, 1)])
+        self.assertEqual(File.sector_list(bitarray('0' * 1559 + '1')), [(207, 10)])
+
+    def test_contig_sector_map_params(self):
+        self.assertRaises(ValueError, File.contig_sector_map, -1)
+        self.assertRaises(ValueError, File.contig_sector_map, 1, (3, 1))
+        self.assertRaises(ValueError, File.contig_sector_map, 1, (208, 1))
+        self.assertRaises(ValueError, File.contig_sector_map, 1, (4, 0))
+        self.assertRaises(ValueError, File.contig_sector_map, 1, (4, 11))
+        self.assertRaises(ValueError, File.contig_sector_map, 1, dir_tracks=3)
+        self.assertRaises(ValueError, File.contig_sector_map, 1, (4, 2), dir_tracks=5)
+        self.assertRaises(ValueError, File.contig_sector_map, 1, dir_tracks=40)
+
+    def test_contig_sector_map_start(self):
+        self.assertEqual(File.contig_sector_map(0)[:10], bitarray('0000000000'))
+        self.assertEqual(File.contig_sector_map(1)[:10], bitarray('1000000000'))
+        self.assertEqual(File.contig_sector_map(2)[:10], bitarray('1100000000'))
+        self.assertEqual(File.contig_sector_map(3)[:10], bitarray('1110000000'))
+        self.assertEqual(File.contig_sector_map(4)[:10], bitarray('1111000000'))
+        self.assertEqual(File.contig_sector_map(5)[:10], bitarray('1111100000'))
+        self.assertEqual(File.contig_sector_map(6)[:10], bitarray('1111110000'))
+        self.assertEqual(File.contig_sector_map(7)[:10], bitarray('1111111000'))
+        self.assertEqual(File.contig_sector_map(8)[:10], bitarray('1111111100'))
+        self.assertEqual(File.contig_sector_map(9)[:10], bitarray('1111111110'))
+
+    def test_contig_sector_map_offset(self):
+        self.assertEqual(File.contig_sector_map(8, (4, 1))[:18], bitarray('111111110000000000'))
+        self.assertEqual(File.contig_sector_map(8, (4, 2))[:18], bitarray('011111111000000000'))
+        self.assertEqual(File.contig_sector_map(8, (4, 3))[:18], bitarray('001111111100000000'))
+        self.assertEqual(File.contig_sector_map(8, (4, 4))[:18], bitarray('000111111110000000'))
+        self.assertEqual(File.contig_sector_map(8, (4, 5))[:18], bitarray('000011111111000000'))
+        self.assertEqual(File.contig_sector_map(8, (4, 6))[:18], bitarray('000001111111100000'))
+        self.assertEqual(File.contig_sector_map(8, (4, 7))[:18], bitarray('000000111111110000'))
+        self.assertEqual(File.contig_sector_map(8, (4, 8))[:18], bitarray('000000011111111000'))
+        self.assertEqual(File.contig_sector_map(8, (4, 9))[:18], bitarray('000000001111111100'))
+        self.assertEqual(File.contig_sector_map(8, (4, 10))[:18], bitarray('000000000111111110'))
+
+    def test_contig_sector_map_dir_tracks(self):
+        self.assertEqual(File.contig_sector_map(0, dir_tracks=5)[:19], bitarray('0000000000000000000'))
+        self.assertEqual(File.contig_sector_map(1, dir_tracks=5)[:19], bitarray('1000000000000000000'))
+        self.assertEqual(File.contig_sector_map(2, dir_tracks=5)[:19], bitarray('1000000000100000000'))
+        self.assertEqual(File.contig_sector_map(3, dir_tracks=5)[:19], bitarray('1000000000110000000'))
+        self.assertEqual(File.contig_sector_map(4, dir_tracks=5)[:19], bitarray('1000000000111000000'))
+        self.assertEqual(File.contig_sector_map(5, dir_tracks=5)[:19], bitarray('1000000000111100000'))
+        self.assertEqual(File.contig_sector_map(6, dir_tracks=5)[:19], bitarray('1000000000111110000'))
+        self.assertEqual(File.contig_sector_map(7, dir_tracks=5)[:19], bitarray('1000000000111111000'))
+        self.assertEqual(File.contig_sector_map(8, dir_tracks=5)[:19], bitarray('1000000000111111100'))
+        self.assertEqual(File.contig_sector_map(9, dir_tracks=5)[:19], bitarray('1000000000111111110'))
+        self.assertEqual(File.contig_sector_map(2, dir_tracks=39)[:(39-4)*10-1+3], bitarray('1' + '0'*((39-4)*10-1) + '10'))
+
+    def test_contig_sector_map_side_span(self):
+        self.assertEqual(File.contig_sector_map(2, (79, 9))[760-3:760+3], bitarray('011000'))
+        self.assertEqual(File.contig_sector_map(2, (79, 10))[760-3:760+3], bitarray('001100'))
+        self.assertEqual(File.contig_sector_map(2, (128, 1))[760-3:760+3], bitarray('000110'))
+        self.assertEqual(File.contig_sector_map(1, (207, 10))[-2:], bitarray('01'))
+        self.assertRaises(ValueError, File.contig_sector_map, 2, (207, 10))
 
     def test_unpack_time(self):
         self.assertIsNone(File.unpack_time(b'\x00\x00\x00\x00\x00'))
