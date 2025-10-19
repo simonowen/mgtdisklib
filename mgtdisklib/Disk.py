@@ -167,15 +167,17 @@ class Disk:
 
         return image
 
-    def add_code_file(self, path: str, *, filename: Optional[str] = None, at_index: Optional[int] = None) -> None:
+    def add_code_file(self, path: str, *, filename: Optional[str] = None, start: int = 0x8000,
+                       execute: Optional[int] = None, at_index: Optional[int] = None) -> None:
         """Add CODE file from path"""
-        file = File.from_code_path(path, filename=filename)
+        file = File.from_code_path(path, filename=filename, start=start, execute=execute)
         self.delete(file.name)
         self.files.insert(len(self.files) if at_index is None else at_index, file)
 
-    def add_code_bytes(self, data: bytes, *, filename: str, at_index: Optional[int] = None) -> None:
+    def add_code_bytes(self, data: bytes, *, filename: str, start: int = 0x8000,
+                       execute: Optional[int] = None, at_index: Optional[int] = None) -> None:
         """Add CODE file from bytes"""
-        file = File.from_code_bytes(data, filename=filename)
+        file = File.from_code_bytes(data, filename=filename, start=start, execute=execute)
         self.delete(file.name)
         self.files.insert(len(self.files) if at_index is None else at_index, file)
 
