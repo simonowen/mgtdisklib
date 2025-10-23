@@ -253,7 +253,6 @@ class DiskTests(unittest.TestCase):
     def test_free_sectors_samdos(self):
         disk = Disk()
         self.assertEqual(disk.free_sectors(), (160 - 4) * 10)
-        self.assertEqual(disk.free_sectors(), (160 - 4) * 10)
         disk.add_code_file(f'{TESTDIR}/samdos2')
         file = disk.files[0]
         self.assertEqual(disk.free_sectors(), (160 - 4) * 10 - file.sectors)
@@ -268,9 +267,9 @@ class DiskTests(unittest.TestCase):
         disk = Disk()
         disk.type = DiskType.MASTERDOS
         disk.dir_tracks = 5
-        self.assertEqual(disk.free_sectors(), (160 - 5) * 10)
+        self.assertEqual(disk.free_sectors(), (160 - 5) * 10 + 1)
         disk.dir_tracks = 39
-        self.assertEqual(disk.free_sectors(), (160 - 39) * 10)
+        self.assertEqual(disk.free_sectors(), (160 - 39) * 10 + 1)
 
     def test_free_bytes_samdos(self):
         disk = Disk()
@@ -290,8 +289,8 @@ class DiskTests(unittest.TestCase):
         disk = Disk()
         disk.type = DiskType.MASTERDOS
         disk.dir_tracks = 39
-        self.assertEqual(disk.free_bytes(), (160 - 39) * 10 * 510 - 9)
-        self.assertEqual(disk.free_bytes(type=FileType.SPECIAL), (160 - 39) * 10 * 512)
+        self.assertEqual(disk.free_bytes(), ((160 - 39) * 10 + 1) * 510 - 9)
+        self.assertEqual(disk.free_bytes(type=FileType.SPECIAL), ((160 - 39) * 10 + 1) * 512)
 
     def test_add_code_file(self):
         disk = Disk()
@@ -496,7 +495,7 @@ class DiskTests(unittest.TestCase):
         disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
         dir = str(disk).splitlines()
         self.assertEqual(dir[0], '* SAMDOS:')
-        self.assertEqual(dir[-1], ' 1 files, 79 free slots, 10.0K used, 770.0K free')
+        self.assertEqual(dir[-1], ' 1 files, 79 free slots, 1540 free sectors, 10.0K used, 770.0K free')
 
         disk = Disk.open(f'{TESTDIR}/masterdos_label.mgt.gz')
         dir = str(disk).splitlines()

@@ -101,14 +101,14 @@ class Disk:
         return max(0, Disk.dir_slots(self.dir_tracks) - len(self.files))
 
     def free_sectors(self) -> int:
-        """Total number of sectors used by all files"""
+        """Number of free data sectors"""
         total_sectors = 80 * 2 * 10
-        dir_sectors = self.dir_tracks * 10
+        dir_sectors = Disk.dir_slots(self.dir_tracks) // 2
         used_sectors = sum(file.sectors for file in self.files)
         return max(0, total_sectors - dir_sectors - used_sectors)
 
     def free_bytes(self, *, type: FileType = FileType.CODE) -> int:
-        """Total number of sectors used by all files"""
+        """Number of usable file data bytes"""
         return max(0, self.free_sectors() * File.data_bytes_per_sector(type) - File.type_header_size(type))
 
     def save(self, path: str, *, compressed: bool = False) -> None:
@@ -203,6 +203,7 @@ class Disk:
 
         str += f'\n{len(self.files):2} files'
         str += f', {self.free_slots()} free slots'
+        str += f', {self.free_sectors()} free sectors'
         str += f', {used_sectors/2:3}K used'
         str += f', {self.free_sectors()/2:3}K free\n'
         return str
