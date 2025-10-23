@@ -837,8 +837,26 @@ class FileTests(unittest.TestCase):
         self.assertFalse(file.bootable)
 
     def test_type_mdrv(self):
-        # TODO?
-        pass
+        file = Disk.open(f'{TESTDIR}/mdrv.mgt.gz').files[0]
+        self.assertEqual(str(file), '  SOURCE        2  ZX MDRV')
+        self.assertEqual(file.type, FileType.ZX_MDRV)
+        self.assertFalse(file.hidden)
+        self.assertFalse(file.protected)
+        self.assertEqual(file.name, 'SOURCE')
+        self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
+        self.assertEqual(file.sectors, 2)
+        self.assertIsNone(file.start)
+        self.assertEqual(file.length, 2 * 510)
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
+        self.assertEqual(file.header, b'')
+        self.assertEqual(file.data[0:12], b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff')
+        self.assertIsNone(file.data_var)
+        self.assertIsNone(file.execute)
+        self.assertIsNone(file.dir)
+        self.assertIsNone(file.time)
+        self.assertIsNone(file.screen_mode)
+        self.assertFalse(file.bootable)
 
     def test_type_zx_screen(self):
         file = Disk.open(f'{TESTDIR}/zx_screen.mgt.gz').files[0]

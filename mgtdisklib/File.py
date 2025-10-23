@@ -248,8 +248,8 @@ class File:
         elif file.type == FileType.ZX_SNP_48K:
             file._length = zx_length or 0xc000  # only Uni-DOS sets this
             # TODO: Z80 regs
-        #elif file.type == FileType.ZX_MDRV:  # TODO: find sample
-        #    pass
+        elif file.type == FileType.ZX_MDRV:
+            file._length = num_sectors * 510
         elif file.type == FileType.ZX_SCREEN:
             file.start = zx_start
             file._length = zx_length
