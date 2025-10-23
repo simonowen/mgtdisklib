@@ -158,6 +158,7 @@ class Disk:
                 entry0[210:210+1] = b'*'
             serial = self.serial or random.getrandbits(16)
             entry0[252:252+2] = struct.pack('<H', serial & 0xffff)
+            entry0[255] = self.dir_tracks - 4
         elif self.type is DiskType.BDOS:
             entry0[232:232+4] = bytes('BDOS', 'ascii')
             if self.label:

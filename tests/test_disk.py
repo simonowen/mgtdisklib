@@ -102,7 +102,27 @@ class DiskTests(unittest.TestCase):
         disk.files[0].data += bytes(1)
         self.assertRaises(RuntimeError, Disk.to_image, disk)
 
-    def test_to_image_dir_tracks_5(self):
+    def test_to_image_dir_tracks_types(self):
+        disk = Disk()
+        disk.type = DiskType.SAMDOS
+        disk.dir_tracks = 5
+        self.assertRaises(ValueError, Disk.to_image, disk)
+        disk.type = DiskType.BDOS
+        self.assertRaises(ValueError, Disk.to_image, disk)
+        disk.type = DiskType.MASTERDOS
+        image = disk.to_image()
+        disk2 = Disk.from_image(image)
+        self.assertEqual(disk2.dir_tracks, 5)
+        disk.dir_tracks = 39
+        image = disk.to_image()
+        disk2 = Disk.from_image(image)
+        self.assertEqual(disk2.dir_tracks, 39)
+        disk.dir_tracks = 3
+        self.assertRaises(ValueError, Disk.to_image, disk)
+        disk.dir_tracks = 40
+        self.assertRaises(ValueError, Disk.to_image, disk)
+
+    def test_to_image_dir_tracks_extra(self):
         disk = Disk()
         disk.type = DiskType.MASTERDOS
         disk.dir_tracks = 5
@@ -114,6 +134,8 @@ class DiskTests(unittest.TestCase):
         data = image.read_sector(4, 1)
         self.assertEqual(data[510], 5)
         self.assertEqual(data[511], 1)
+        disk.dir_tracks = 39
+        image = disk.to_image()
 
     def test_to_image_label_samdos(self):
         disk = Disk()
