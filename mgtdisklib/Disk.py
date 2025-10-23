@@ -118,10 +118,30 @@ class Disk:
 
     def validate(self) -> None:
         """Validate current disk settings"""
+
+        unique_files = set(id(file) for file in self.files)
+        if len(unique_files) != len(self.files):
+            raise RuntimeError('duplicate file objects, expected unique copies')
+
         if self.dir_tracks > 4 and self.type is not DiskType.MASTERDOS:
             raise ValueError('extra directory tracks requires a MasterDOS disk')
         elif self.dir_tracks < 4 or self.dir_tracks > 39:
             raise ValueError('4 to 39 directory tracks are supported')
+
+        dir_numbers = [file.dir for file in self.files if file.type == FileType.DIR and file.dir is not None]
+        dup_dirs = [dir for dir in dir_numbers if dir_numbers.count(dir) > 1]
+        if dup_dirs:
+            raise RuntimeError(f'directory number used more than once: {", ".join(set(map(str, dup_dirs)))}')
+
+        used_dirs = [file.dir for file in self.files if file.type != FileType.DIR and file.dir is not None]
+        missing_dirs = [dir for dir in used_dirs if dir not in dir_numbers]
+        if missing_dirs:
+            raise RuntimeError(f'directory number used but not found: {", ".join(set(map(str, missing_dirs)))}')
+
+        file_names = [file.name.lower().rstrip() for file in self.files]
+        dup_names = [file.name for file in self.files if file_names.count(file.name.lower()) > 1]
+        if dup_names:
+            raise RuntimeError(f'duplicate filename found: {", ".join(set(dup_names))}')
 
     def to_image(self, *, reserved_map: Optional[bitarray] = None) -> Image:
         """Generate MGT disk image from current contents"""

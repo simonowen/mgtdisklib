@@ -1,3 +1,4 @@
+import copy
 import os
 import random
 import unittest
@@ -78,28 +79,35 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(disk.files[0].data, disk2.files[0].data)
 
     def test_to_image_file_limit_samdos(self):
-        disk = Disk.open(f'{TESTDIR}/basic_auto.mgt.gz')
-        file = disk.files[0]
-        disk.files = [file for i in range(80)]
+        disk = Disk()
+        for i in range(80):
+            disk.add_code_bytes(b'\x00', filename=f'file{i+1}')
+        self.assertEqual(len(disk.files), 80)
         disk.to_image()
-        disk.files = [file for i in range(81)]
+        disk.add_code_bytes(b'\x00', filename='file81')
         self.assertRaises(RuntimeError, Disk.to_image, disk)
 
     def test_to_image_file_limit_masterdos(self):
-        disk = Disk.open(f'{TESTDIR}/basic_auto.mgt.gz')
+        disk = Disk()
         disk.type = DiskType.MASTERDOS
         disk.dir_tracks = 5
-        file = disk.files[0]
-        disk.files = [file for i in range(98)]
+        for i in range(98):
+            disk.add_code_bytes(b'\x00', filename=f'file{i+1}')
+        self.assertEqual(len(disk.files), 98)
         disk.to_image()
-        disk.files = [file for i in range(99)]
+        disk.add_code_bytes(b'\x00', filename='file99')
         self.assertRaises(RuntimeError, Disk.to_image, disk)
 
     def test_to_image_data_limit(self):
         disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
-        disk.files[0].data = bytes((76 + 80) * 10 * 510 - 9)
+        raw_capacity = (76 + 80) * 10 * 510  # too big for a single file
+        disk.files[0].data = bytes(0x7f800 - 9)  # 1024 full sectors
+        raw_capacity -= (9 + disk.files[0].length)
+        disk.files.append(copy.deepcopy(disk.files[0]))
+        disk.files[1].name = 'other2'
+        disk.files[1].data = bytes(raw_capacity - 9)  # remaining space
         disk.to_image()
-        disk.files[0].data += bytes(1)
+        disk.files[1].data += bytes(1)
         self.assertRaises(RuntimeError, Disk.to_image, disk)
 
     def test_to_image_dir_tracks_types(self):
@@ -233,6 +241,37 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(disk2.files[0]._first_sector, (6, 1))
         data = image.read_sector(6, 1)
         self.assertEqual(data[9:510], disk.files[0].data[:510-9])
+
+    def test_validate_empty(self):
+        disk = Disk()
+        Disk.validate(disk)
+
+    def test_validate_duplicate_file_obj(self):
+        disk = Disk.open(f'{TESTDIR}/dir.mgt.gz')
+        disk.files.append(disk.files[0])
+        self.assertRaises(RuntimeError, Disk.validate, disk)
+
+    def test_validate_duplicate_dirs(self):
+        disk = Disk.open(f'{TESTDIR}/dir.mgt.gz')
+        disk.files.append(copy.deepcopy(disk.files[0]))
+        disk.files[1].name = 'other'
+        self.assertRaises(RuntimeError, Disk.validate, disk)
+
+    def test_validate_missing_dir(self):
+        disk = Disk.open(f'{TESTDIR}/dir.mgt.gz')
+        self.assertEqual(disk.files[0].dir, disk.files[1].dir)
+        disk.files[0].dir = 2
+        self.assertRaises(RuntimeError, Disk.validate, disk)
+
+    def test_validate_duplicate_filename(self):
+        disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
+        disk.files.append(copy.deepcopy(disk.files[0]))
+        disk.files[1].name = 'different'
+        disk.validate()
+        disk.files[1].name = disk.files[0].name
+        self.assertEqual(len(disk.files), 2)
+        self.assertRaises(RuntimeError, Disk.validate, disk)
+        self.assertRaises(RuntimeError, Disk.to_image, disk)
 
     def test_bootable_empty(self):
         disk = Disk()
