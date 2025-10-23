@@ -25,11 +25,11 @@ class DiskType(Enum):
 
 
 class Disk:
-    __slots__ = ('type', '_dir_tracks', 'label', 'serial', 'files', 'compressed')
+    __slots__ = ('type', 'dir_tracks', 'label', 'serial', 'files', 'compressed')
 
     def __init__(self) -> None:
         self.type: DiskType = DiskType.SAMDOS
-        self._dir_tracks: int = 4
+        self.dir_tracks: int = 4
         self.label: Optional[str] = None
         self.serial: Optional[int] = None
         self.files: List[File] = []
@@ -38,19 +38,6 @@ class Disk:
     def __str__(self) -> str:
         """String representation of Disk, as directory listing"""
         return self.dir()
-
-    @property
-    def dir_tracks(self) -> int:
-        """Number of tracks used for directory (4-39)"""
-        return self._dir_tracks
-
-    @dir_tracks.setter
-    def dir_tracks(self, value: int) -> None:
-        if value > 4 and self.type is not DiskType.MASTERDOS:
-            raise ValueError('extra directory tracks requires a MasterDOS disk')
-        elif value < 4 or value > 39:
-            raise ValueError('4 to 39 directory tracks are supported')
-        self._dir_tracks = value
 
     @property
     def bootable(self) -> bool:
@@ -129,8 +116,17 @@ class Disk:
         image = self.to_image()
         image.save(path, compressed=compressed)
 
+    def validate(self) -> None:
+        """Validate current disk settings"""
+        if self.dir_tracks > 4 and self.type is not DiskType.MASTERDOS:
+            raise ValueError('extra directory tracks requires a MasterDOS disk')
+        elif self.dir_tracks < 4 or self.dir_tracks > 39:
+            raise ValueError('4 to 39 directory tracks are supported')
+
     def to_image(self, *, reserved_map: Optional[bitarray] = None) -> Image:
         """Generate MGT disk image from current contents"""
+        self.validate()
+
         image = MGTImage()
         timefmt = TimeFormat.BDOS if self.type is DiskType.BDOS else TimeFormat.MASTERDOS
 

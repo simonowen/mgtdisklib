@@ -391,18 +391,6 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(disk.files[83-1].name, '83')
         self.assertEqual(disk.files[98-1].name, '98')
 
-    def test_dir_tracks_write(self):
-        disk = Disk()
-        disk.type = DiskType.SAMDOS
-        self.assertRaises(ValueError, lambda: setattr(disk, 'dir_tracks', 5))
-        disk.type = DiskType.BDOS
-        self.assertRaises(ValueError, lambda: setattr(disk, 'dir_tracks', 5))
-        disk.type = DiskType.MASTERDOS
-        self.assertRaises(ValueError, lambda: setattr(disk, 'dir_tracks', 3))
-        disk.dir_tracks = 5
-        disk.dir_tracks = 39
-        self.assertRaises(ValueError, lambda: setattr(disk, 'dir_tracks', 40))
-
     def test_dir_sectors(self):
         self.assertEqual(Disk.dir_slots(4), 80)
         self.assertEqual(Disk.dir_slots(5), 98)  # track 4 sector 1 is boot sector
