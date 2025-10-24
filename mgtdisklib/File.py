@@ -252,7 +252,7 @@ class File:
             file._length = zx_length or 0xc000  # only Uni-DOS sets this
             # TODO: Z80 regs
         elif file.type == FileType.ZX_MDRV:
-            file._length = num_sectors * 510
+            file._length = zx_length or num_sectors * 510  # only Uni-DOS sets this
         elif file.type == FileType.ZX_SCREEN:
             file.start = zx_start
             file._length = zx_length

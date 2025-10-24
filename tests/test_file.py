@@ -859,6 +859,28 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.screen_mode)
         self.assertFalse(file.bootable)
 
+    def test_type_mdrv_unidos(self):
+        file = Disk.open(f'{TESTDIR}/unidos_mdrv.mgt.gz').files[0]
+        self.assertEqual(str(file), '  SOURCE        1  ZX MDRV')
+        self.assertEqual(file.type, FileType.ZX_MDRV)
+        self.assertFalse(file.hidden)
+        self.assertFalse(file.protected)
+        self.assertEqual(file.name, 'SOURCE')
+        self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
+        self.assertEqual(file.sectors, 1)
+        self.assertIsNone(file.start)
+        self.assertEqual(file.length, 45)
+        self.assertEqual(file.first_sector, (4, 1))
+        self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
+        self.assertEqual(file.header, b'')
+        self.assertNotEqual(file.data[0:12], b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff')
+        self.assertIsNone(file.data_var)
+        self.assertIsNone(file.execute)
+        self.assertIsNone(file.dir)
+        self.assertIsNone(file.time)
+        self.assertIsNone(file.screen_mode)
+        self.assertFalse(file.bootable)
+
     def test_type_zx_screen(self):
         file = Disk.open(f'{TESTDIR}/zx_screen.mgt.gz').files[0]
         self.assertEqual(str(file), '  Snap A       14  ZX SCREEN$')
