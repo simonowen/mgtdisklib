@@ -98,7 +98,7 @@ class File:
     HEADER_SIZE = 9
 
     __slots__ = ('entry', 'type', 'hidden', 'protected', 'name_raw', 'name', '_first_sector',
-                 'sector_map', '_sectors', 'start', '_length', 'execute', 'basic_length',
+                 'sector_map', '_sectors', 'start', '_length', 'execute', 'basic_offsets',
                  'time', 'dir', 'driver_pos', 'data_var', 'screen_mode', 'header', 'data')
 
     def __init__(self) -> None:
@@ -114,7 +114,7 @@ class File:
         self.start: Optional[int] = None
         self._length: Optional[int] = None
         self.execute: Optional[int] = None
-        self.basic_length: Optional[int] = None
+        self.basic_offsets: Optional[List[int]] = None
         self.time: Optional[datetime] = None
         self.dir: Optional[int] = None
         self.driver_pos: Optional[bytes] = None
@@ -225,6 +225,10 @@ class File:
         zx_execute = None if data[219] == 0x00 else File.le_word(data[218:218+2])
         zx_datavar = chr(ord('a') + (data[216] & 0x3f) - 1)
 
+        sam_vars_offset = File.triple_to_len(data[221:221+3])
+        sam_gap_offset = File.triple_to_len(data[224:224+3])
+        sam_str_vars_offset = File.triple_to_len(data[227:227+3])
+
         sam_start = File.triple_to_addr(data[236:236+3])
         sam_length = File.triple_to_len(data[239:239+3])
         sam_execute = File.triple_to_exec(data[242:242+3])
@@ -235,7 +239,7 @@ class File:
         if file.type == FileType.ZX_BASIC:
             file._length = zx_length
             file.start = zx_start
-            file.basic_length = zx_basic_length
+            file.basic_offsets = [zx_basic_length]
             file.execute = zx_autorun
         elif file.type in (FileType.ZX_DATA, FileType.ZX_DATA_STR):
             file._length = zx_length
@@ -269,7 +273,7 @@ class File:
         elif file.type == FileType.UNIDOS_CREATE:
             file._length = zx_length
         elif file.type == FileType.BASIC:
-            file.start = sam_start
+            file.basic_offsets = [sam_vars_offset, sam_gap_offset, sam_str_vars_offset]
             file._length = sam_length
             file.execute = sam_autorun
         elif file.type in (FileType.DATA, FileType.DATA_STR):
@@ -365,7 +369,6 @@ class File:
         zx_length = File.word_to_le(self.length or 0)
         zx_length_64k = File.word_to_le((self.length or 0) >> 16)[0]
         zx_start = File.word_to_le(self.start or 0)
-        zx_basic_length = File.word_to_le(self.basic_length or 0)
         zx_execute = File.word_to_le(self.execute or 0)
         zx_autorun = File.word_to_le(self.execute or 0xffff)
         zx_datavar = ord((self.data_var or 'a').lower()[0]) - ord('a') + 1
@@ -396,7 +399,7 @@ class File:
         if self.type == FileType.ZX_BASIC:
             data[211] = zx_tape_id
             data[212:212+2] = zx_length
-            data[216:216+2] = zx_basic_length
+            data[216:216+2] = File.word_to_le((self.basic_offsets or [0])[0])
             data[214:214+2] = zx_start
             data[218:218+2] = zx_autorun
         elif self.type in (FileType.ZX_DATA, FileType.ZX_DATA_STR):
@@ -432,6 +435,10 @@ class File:
         elif self.type == FileType.UNIDOS_CREATE:
             data[212:212+2] = zx_length
         elif self.type == FileType.BASIC:
+            basic_offsets = self.basic_offsets or [0, 0, 0]
+            data[221:221+3] = File.len_to_triple(basic_offsets[0])
+            data[224:224+3] = File.len_to_triple(basic_offsets[1])
+            data[227:227+3] = File.len_to_triple(basic_offsets[2])
             data[236:236+3] = sam_start
             data[239:239+3] = sam_length
             data[242:242+3] = sam_autorun

@@ -250,13 +250,13 @@ class FileTests(unittest.TestCase):
         file.type = FileType.ZX_BASIC
         file.data = bytes(0x1234)
         file.start = 0x5678
-        file.basic_length = 0x9abc
+        file.basic_offsets = [0x9abc]
         file.execute = None
         dir, sector_map = file.to_dir()
         self.assertEqual(dir[211], File.tape_id_from_type(file.type))
         self.assertEqual(dir[212:212+2], File.word_to_le(file.length))
         self.assertEqual(dir[214:214+2], File.word_to_le(file.start))
-        self.assertEqual(dir[216:216+2], File.word_to_le(file.basic_length))
+        self.assertEqual(dir[216:216+2], File.word_to_le(file.basic_offsets[0]))
         self.assertEqual(dir[218:218+2], File.word_to_le(0xffff))
         self.assertEqual(sector_map.count(1), file.sectors)
         self.assertEqual(len(file.header), File.type_header_size(file.type))
@@ -395,6 +395,7 @@ class FileTests(unittest.TestCase):
         file = File()
         file.type = FileType.BASIC
         file.start = 0x123456
+        file.basic_offsets = [21, 121, 654]
         file.data = bytes(0x54321)
         file.execute = None
         dir, sector_map = file.to_dir()
@@ -1029,7 +1030,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
         self.assertEqual(file.sectors, 2)
         self.assertEqual(file.length, 682)
-        self.assertEqual(file.start, 23765)
+        self.assertEqual(file.basic_offsets, [21, 121, 625])
+        self.assertIsNone(file.start)
         self.assertEqual(file.first_sector, (4, 1))
         self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.header, b'\x10\xaa\x02\xd5\x9c\xff\xff\x00\x00')
@@ -1052,7 +1054,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.name_raw, bytes(f'{file.name:10}', 'ascii'))
         self.assertEqual(file.sectors, 2)
         self.assertEqual(file.length, 625)
-        self.assertEqual(file.start, 23765)
+        self.assertEqual(file.basic_offsets, [21, 113, 625])
+        self.assertIsNone(file.start)
         self.assertEqual(file.execute, 12345)
         self.assertEqual(file.first_sector, (4, 1))
         self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
