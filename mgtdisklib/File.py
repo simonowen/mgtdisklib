@@ -223,7 +223,7 @@ class File:
         zx_basic_length = File.le_word(data[216:216+2])
         zx_autorun = None if data[219] == 0xff else File.le_word(data[218:218+2])
         zx_execute = None if data[219] == 0x00 else File.le_word(data[218:218+2])
-        zx_datavar = chr(ord('a') + (data[216] & 0x3f) - 1)
+        zx_data_var = chr(ord('a') + (data[216] & 0x3f) - 1)
 
         sam_vars_offset = File.triple_to_len(data[221:221+3])
         sam_gap_offset = File.triple_to_len(data[224:224+3])
@@ -233,8 +233,7 @@ class File:
         sam_length = File.triple_to_len(data[239:239+3])
         sam_execute = File.triple_to_exec(data[242:242+3])
         sam_autorun = File.triple_to_line(data[242:242+3])
-        sam_datavar = data[222:222+(data[221] & 0xf)].decode('ascii', errors='replace')
-        sam_screen_mode = 1 + (data[221] & 0x3)
+        sam_data_var = data[222:222+(data[221] & 0xf)].decode('ascii', errors='replace')
 
         if file.type == FileType.ZX_BASIC:
             file._length = zx_length
@@ -244,7 +243,7 @@ class File:
         elif file.type in (FileType.ZX_DATA, FileType.ZX_DATA_STR):
             file._length = zx_length
             file.start = zx_start
-            file.data_var = zx_datavar
+            file.data_var = zx_data_var
         elif file.type == FileType.ZX_CODE:
             file._length = zx_length
             file.start = zx_start
@@ -279,7 +278,7 @@ class File:
         elif file.type in (FileType.DATA, FileType.DATA_STR):
             file.start = sam_start
             file._length = sam_length
-            file.data_var = sam_datavar
+            file.data_var = sam_data_var
         elif file.type == FileType.CODE:
             file.start = sam_start
             file._length = sam_length
@@ -287,7 +286,7 @@ class File:
         elif file.type == FileType.SCREEN:
             file.start = sam_start
             file._length = sam_length
-            file.screen_mode = sam_screen_mode
+            file.screen_mode = 1 + (data[221] & 0x3)
         elif file.type == FileType.DRIVER_APP:
             file.start = sam_start
             file._length = sam_length
@@ -373,20 +372,12 @@ class File:
         zx_autorun = File.word_to_le(self.execute or 0xffff)
         zx_datavar = ord((self.data_var or 'a').lower()[0]) - ord('a') + 1
 
-        zx_screen_addr = File.word_to_le(0x4000)
-        zx_screen_len = File.word_to_le(0x1b00)
-        zx_snap_48k_len = File.word_to_le(0xc000)
-        zx_snap_128k_len_hi = File.word_to_le(0x20001 >> 16)[0]
-        zx_snap_128k_len_lo = File.word_to_le(0x20001 & 0xffff)
-
         sam_start = File.addr_to_triple(self.start)
         sam_length = File.len_to_triple(self.length)
         sam_execute = File.exec_to_triple(self.execute)
         sam_autorun = File.line_to_triple(self.execute)
         sam_datavar = (self.data_var or '')[:10]  # BASIC limit
-        sam_screen_mode = ((self.screen_mode or 1) - 1) & 0x3
         sam_dir = self.dir or 0
-        sam_driver_pos = self.driver_pos or bytes(4)
 
         if File.type_has_data_header(self.type) and File.is_sam_file_type(self.type):
             data[211] = self.type.value
@@ -414,19 +405,19 @@ class File:
             data[218:218+2] = zx_execute
         elif self.type == FileType.ZX_SNP_48K:
             data[211] = zx_tape_id
-            data[212:212+2] = zx_snap_48k_len
+            data[212:212+2] = File.word_to_le(0xc000)
         elif self.type == FileType.ZX_MDRV:
             pass
         elif self.type == FileType.ZX_SCREEN:
             data[211] = zx_tape_id
-            data[212:212+2] = zx_screen_len
-            data[214:214+2] = zx_screen_addr
+            data[212:212+2] = File.word_to_le(0x1b00)
+            data[214:214+2] = File.word_to_le(0x4000)
         elif self.type == FileType.SPECIAL:
             pass
         elif self.type == FileType.ZX_SNP_128K:
-            data[210] = zx_snap_128k_len_hi
+            data[210] = File.word_to_le(0x20001 >> 16)[0]
             data[211] = 0x10  # TODO: check
-            data[212:212+2] = zx_snap_128k_len_lo
+            data[212:212+2] = File.word_to_le(0x20001 & 0xffff)
         elif self.type == FileType.OPENTYPE:
             data[210] = zx_length_64k
             data[212:212+2] = zx_length
@@ -452,11 +443,11 @@ class File:
             data[239:239+3] = sam_length
             data[242:242+3] = sam_execute
         elif self.type == FileType.SCREEN:
-            data[221] = sam_screen_mode
+            data[221] = ((self.screen_mode or 1) - 1) & 0x3
             data[236:236+3] = sam_start
             data[239:239+3] = sam_length
         elif self.type == FileType.DIR:
-            data[232:232+4] = sam_driver_pos
+            data[232:232+4] = self.driver_pos or bytes(4)
             data[250] = sam_dir
         elif self.type == FileType.DRIVER_APP:
             data[236:236+3] = sam_start

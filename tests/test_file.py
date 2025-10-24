@@ -330,8 +330,8 @@ class FileTests(unittest.TestCase):
     def test_to_dir_zx_screen(self):
         file = File()
         file.type = FileType.ZX_SCREEN
-        file.data = bytes(0x1234)  # length ignored
-        file.start = 0x5678  # address ignored
+        file.data = bytes(0x1b00)
+        file.start = 0x4000
         dir, sector_map = file.to_dir()
         self.assertEqual(dir[211], File.tape_id_from_type(file.type))
         self.assertEqual(dir[212:212+2], File.word_to_le(0x1b00))
@@ -351,7 +351,7 @@ class FileTests(unittest.TestCase):
     def test_to_dir_zx_snp_128k(self):
         file = File()
         file.type = FileType.ZX_SNP_128K
-        file.data = bytes(0x1234)  # length ignored
+        file.data = bytes(0x20001)
         dir, sector_map = file.to_dir()
         self.assertEqual(dir[210], 0x20001 >> 16)  # fixed length high byte
         self.assertEqual(dir[211], 0x10)  # TODO: check
@@ -376,7 +376,7 @@ class FileTests(unittest.TestCase):
     def test_to_dir_zx_execute(self):
         file = File()
         file.type = FileType.ZX_EXECUTE
-        file.data = bytes(0x1234)  # length ignored
+        file.data = bytes(510)
         dir, sector_map = file.to_dir()
         self.assertEqual(dir[212:212+2], File.word_to_le(510))
         self.assertEqual(sector_map.count(1), file.sectors)
