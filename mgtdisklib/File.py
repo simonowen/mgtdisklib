@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: MIT
 
 import os
+import re
 import struct
 from collections import deque
 from datetime import datetime
@@ -362,9 +363,138 @@ class File:
         self.sector_map = sector_map
         return disk_map
 
+    def validate(self) -> None:
+        exact_data_len: Optional[int] = None
+        max_data_len: Optional[int] = None
+        expected: List[str] = []
+
+        if self.type == FileType.NONE:
+            raise ValueError('file type is NONE')
+
+        if not self.name.rstrip():
+            raise ValueError('file name is blank')
+        elif len(self.name.rstrip()) > 10:
+            raise ValueError(f'file name ({self.name}) is too long (> 10 chars)')
+
+        if len(self.sector_map) != 1560:
+            raise ValueError('sector map must be 1560 bits long')
+
+        if self.merge_protect and self.type != FileType.CODE:
+            raise ValueError('merge_protect is only valid for CODE files')
+
+        if self.type == FileType.ZX_BASIC:
+            expected = ['start', 'length', 'basic_offsets', 'autorun']
+        elif self.type in (FileType.ZX_DATA, FileType.ZX_DATA_STR):
+            expected = ['start', 'length', 'datavar']
+        elif self.type == FileType.ZX_CODE:
+            expected = ['start', 'length', 'execute']
+        elif self.type == FileType.ZX_SNP_48K:
+            expected = ['length']
+            exact_data_len = 0xc000
+        elif self.type == FileType.ZX_SCREEN:
+            expected = ['length']
+            exact_data_len = 0x1b00
+        elif self.type == FileType.ZX_SNP_128K:
+            expected = ['length']
+            exact_data_len = 0x20001
+        elif self.type == FileType.ZX_EXECUTE:
+            expected = ['length']
+            max_data_len = 510
+        elif self.type == FileType.BASIC:
+            expected = ['length', 'basic_offsets', 'autorun']
+        elif self.type in (FileType.DATA, FileType.DATA_STR):
+            expected = ['start', 'length', 'datavar']
+        elif self.type == FileType.CODE:
+            expected = ['start', 'length', 'execute']
+        elif self.type == FileType.SCREEN:
+            expected = ['length', 'screen_mode']
+        elif self.type == FileType.DIR:
+            expected = ['dir', 'driver_pos']
+        elif self.type == FileType.DRIVER_APP:
+            expected = ['start', 'length']
+        elif self.type == FileType.DRIVER_BOOT:
+            expected = ['start', 'length']
+
+        if 'screen_mode' in expected:
+            if self.screen_mode is None:
+                raise ValueError(f'{self.name}: screen_mode is required for {self.type.name}')
+            elif self.type == FileType.SCREEN and not (1 <= self.screen_mode <= 4):
+                raise ValueError(f'{self.name}: screen_mode {self.screen_mode} out of range (1-4)')
+
+        if 'length' in expected:
+            if self.type < FileType.ZX_SCREEN and self.length > 0xffff:
+                raise ValueError(f'{self.name}: length {self.length} out of range (0-65535) for {self.type.name}')
+            elif self.type == FileType.ZX_SCREEN and self.length != 0x1b00:
+                raise ValueError(f'{self.name}: length must be 6912 for {self.type.name}')
+            elif self.type == FileType.SCREEN and self.screen_mode and (
+                 self.length < (0x1b29, 0x3829, 0x6029, 0x6029)[self.screen_mode - 1]):
+                raise ValueError(f'{self.name}: length {self.length} too small for screen mode {self.screen_mode}')
+            elif self.type == FileType.SCREEN and self.data[-1] != 0xff:
+                raise ValueError(f'{self.name}: last byte of screen data should be 0xff')
+            elif self.length > 0x83fff:
+                raise ValueError(f'{self.name}: length {self.length} out of range (0-540671) for {self.type.name}')
+
+        if 'start' in expected:
+            if self.start is None:
+                raise ValueError(f'{self.name}: start address is required for {self.type.name}')
+            elif self.type <= FileType.ZX_SCREEN and not (0 <= self.start <= 0xffff):
+                raise ValueError(f'{self.name}: start address {self.start} out of range (0-65535)')
+            elif not (0 <= self.start <= 0x7ffff):
+                raise ValueError(f'{self.name}: start address {self.start} out of range (0-524287)')
+
+        if 'execute' in expected and self.execute is not None:
+            if self.type <= FileType.ZX_SCREEN and not (0 <= self.execute <= 0xffff):
+                raise ValueError(f'{self.name}: execute address {self.execute} out of range (0-65535)')
+            elif not (0 <= self.execute <= 0x7ffff):
+                raise ValueError(f'{self.name}: execute address {self.execute} out of range (0-524287)')
+
+        if 'autorun' in expected and self.execute is not None:
+            if self.type <= FileType.ZX_SCREEN and not (0 <= self.execute <= 9999):
+                raise ValueError(f'{self.name}: autorun line {self.execute} out of range (0-9999)')
+            elif not (0 <= self.execute <= 0xffff):
+                raise ValueError(f'{self.name}: autorun line {self.execute} out of range (0-65535)')
+
+        if 'basic_offsets' in expected:
+            if self.basic_offsets is None:
+                raise ValueError(f'{self.name}: basic_offsets required for {self.type.name}')
+            elif [x for x in self.basic_offsets if x > self.length]:
+                raise ValueError(f'{self.name}: basic_offsets must not exceed data length')
+            elif self.basic_offsets != sorted(self.basic_offsets):
+                raise ValueError(f'{self.name}: basic_offsets {self.basic_offsets} must be in order')
+            elif self.type == FileType.ZX_BASIC and len(self.basic_offsets) != 1:
+                raise ValueError(f'{self.name}: expected 1 basic_offsets entry for {self.type.name}')
+            elif self.type == FileType.BASIC and len(self.basic_offsets) != 3:
+                raise ValueError(f'{self.name}: expected 3 basic_offsets entries for {self.type.name}')
+
+        if 'datavar' in expected:
+            if not self.data_var:
+                raise ValueError(f'{self.name}: data_var is required for {self.type.name}')
+            elif not re.match('^[A-Za-z][A-Za-z0-9]*$', self.data_var, re.IGNORECASE):
+                raise ValueError(f'{self.name}: data_var ({self.data_var}) name is invalid')
+            elif self.type in (FileType.ZX_DATA, FileType.ZX_DATA_STR) and len(self.data_var) != 1:
+                raise ValueError(f'{self.name}: data_var ({self.data_var}$) name must be a single letter')
+            elif self.type in (FileType.DATA, FileType.DATA_STR) and len(self.data_var) > 10:
+                raise ValueError(f'{self.name}: data_var ({self.data_var}$) name must be <= 10 chars')
+
+        if 'dir' in expected:
+            if self.dir is None:
+                raise ValueError(f'{self.name}: directory number is required for {self.type.name}')
+            elif not (0 < self.dir < 255):
+                raise ValueError(f'{self.name}: directory number {self.dir} out of range (1-254)')
+
+        if 'driver_pos' in expected and self.driver_pos is not None:
+            if len(self.driver_pos) != 4:
+                raise ValueError(f'{self.name}: driver_pos must be 4 values (x,y,w,h)')
+
+        if exact_data_len and self.length != exact_data_len:
+            raise ValueError(f'{self.name}: length {self.length} should be {exact_data_len} for {self.type.name}')
+        elif max_data_len and self.length > max_data_len:
+            raise ValueError(f'{self.name}: length {self.length} exceeds max {max_data_len} for {self.type.name}')
+
     def to_dir(self, disk_map: Optional[bitarray] = None,
                timefmt: TimeFormat = TimeFormat.MASTERDOS) -> Tuple[bytes, bitarray]:
         """Create directory entry for file, return updated sector map"""
+        self.validate()
 
         disk_map = self.allocate(disk_map)
 

@@ -143,6 +143,9 @@ class Disk:
         if dup_names:
             raise RuntimeError(f'duplicate filename found: {", ".join(set(dup_names))}')
 
+        for file in self.files:
+            file.validate()
+
     def to_image(self, *, reserved_map: Optional[bitarray] = None) -> Image:
         """Generate MGT disk image from current contents"""
         self.validate()

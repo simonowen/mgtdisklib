@@ -213,14 +213,6 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.screen_mode)
         self.assertTrue(file.bootable)
 
-    def test_save_none(self):
-        file = File.from_path(f'{TESTDIR}/none.file')
-        with make_temp_file('.file') as temp_path:
-            file.save(temp_path)
-            file2 = File.from_path(temp_path)
-        self.assertEqual(file2.type, FileType.NONE)
-        self.assertEqual(file2.data, bytes())
-
     def test_save(self):
         file = File.from_code_path(f'{TESTDIR}/samdos2', start=491529)
         with make_temp_file('.file') as temp_path:
@@ -232,28 +224,518 @@ class FileTests(unittest.TestCase):
         self.assertEqual(len(data), len(data_golden))
         self.assertEqual(data, data_golden)
 
+    def test_validate_type_none(self):
+        file = File()
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_name_empty(self):
+        file = File()
+        file.type = FileType.CODE
+        self.assertRaises(ValueError, File.validate, file)
+        file.name = ' '
+        self.assertRaises(ValueError, File.validate, file)
+        file.name = ' ' * 11
+
+    def test_validate_name_length(self):
+        file = Disk.open(f'{TESTDIR}/zx_code.mgt.gz').files[0]
+        file.validate()
+        file.name = 'abcdefghij'
+        file.validate()
+        file.name += 'k'
+        self.assertRaises(ValueError, File.validate, file)
+        file.name = 'abcdefghij   '
+        file.validate()
+
+    def test_validate_sector_map(self):
+        file = Disk.open(f'{TESTDIR}/zx_code.mgt.gz').files[0]
+        file.validate()
+        file.sector_map = bitarray(1560)
+        file.validate()
+        file.sector_map = bitarray()
+        self.assertRaises(ValueError, File.validate, file)
+        file.sector_map = bitarray(1559)
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_merge_protect(self):
+        file = Disk.open(f'{TESTDIR}/basic_auto.mgt.gz').files[0]
+        file.merge_protect = True
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_zx_basic_start(self):
+        file = Disk.open(f'{TESTDIR}/zx_basic_vars.mgt.gz').files[0]
+        file.validate()
+        file.start = None
+        self.assertRaises(ValueError, File.validate, file)
+        file.start = -1
+        self.assertRaises(ValueError, File.validate, file)
+        file.start = 0x10000
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_zx_basic_length(self):
+        file = Disk.open(f'{TESTDIR}/zx_basic_vars.mgt.gz').files[0]
+        file.validate()
+        file.basic_offsets = [0]
+        file.validate()
+        file.data = bytes()
+        file.validate()
+        file.data = bytes(1)
+        file.validate()
+        file.data = bytes(0xffff)
+        file.validate()
+        file.data = bytes(0x10000)
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_zx_basic_basic_offsets(self):
+        file = Disk.open(f'{TESTDIR}/zx_basic_vars.mgt.gz').files[0]
+        file.validate()
+        file.basic_offsets = [file.length]
+        file.validate()
+        file.basic_offsets = [file.length // 2]
+        file.validate()
+        file.basic_offsets = [file.length + 1]
+        self.assertRaises(ValueError, File.validate, file)
+        file.basic_offsets = []
+        self.assertRaises(ValueError, File.validate, file)
+        file.basic_offsets = [1, 2]
+        self.assertRaises(ValueError, File.validate, file)
+        file.basic_offsets = None
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_zx_basic_autorun(self):
+        file = Disk.open(f'{TESTDIR}/zx_basic_auto.mgt.gz').files[0]
+        file.validate()
+        file.execute = None
+        file.validate()
+        file.execute = 0
+        file.validate()
+        file.execute = 9999
+        file.validate()
+        file.execute = -1
+        self.assertRaises(ValueError, File.validate, file)
+        file.execute = 10000
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_zx_data_start(self):
+        file = Disk.open(f'{TESTDIR}/zx_data.mgt.gz').files[0]
+        file.validate()
+        file.start = 0
+        file.validate()
+        file.start = 0xffff
+        file.validate()
+        file.start = None
+        self.assertRaises(ValueError, File.validate, file)
+        file.start = -1
+        self.assertRaises(ValueError, File.validate, file)
+        file.start = 0x10000
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_zx_data_length(self):
+        file = Disk.open(f'{TESTDIR}/zx_data.mgt.gz').files[0]
+        file.validate()
+        file.data = bytes(0xffff)
+        file.validate()
+        file.data += b'\x00'
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_zx_data_datavar(self):
+        file = Disk.open(f'{TESTDIR}/zx_data.mgt.gz').files[0]
+        file.validate()
+        file.data_var = 'ab'
+        self.assertRaises(ValueError, File.validate, file)
+        file.data_var = '?'
+        self.assertRaises(ValueError, File.validate, file)
+        file.data_var = ''
+        self.assertRaises(ValueError, File.validate, file)
+        file.data_var = None
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_zx_data_str_start(self):
+        file = Disk.open(f'{TESTDIR}/zx_data_str1.mgt.gz').files[0]
+        file.validate()
+        file.start = 0
+        file.validate()
+        file.start = 0xffff
+        file.validate()
+        file.start = None
+        self.assertRaises(ValueError, File.validate, file)
+        file.start = -1
+        self.assertRaises(ValueError, File.validate, file)
+        file.start = 0x10000
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_zx_data_str_length(self):
+        file = Disk.open(f'{TESTDIR}/zx_data_str1.mgt.gz').files[0]
+        file.validate()
+        file.data = bytes(0xffff)
+        file.validate()
+        file.data += b'\x00'
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_zx_data_str_datavar(self):
+        file = Disk.open(f'{TESTDIR}/zx_data_str1.mgt.gz').files[0]
+        file.validate()
+        file.data_var = 'ab'
+        self.assertRaises(ValueError, File.validate, file)
+        file.data_var = '?'
+        self.assertRaises(ValueError, File.validate, file)
+        file.data_var = ''
+        self.assertRaises(ValueError, File.validate, file)
+        file.data_var = None
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_zx_code_start(self):
+        file = Disk.open(f'{TESTDIR}/zx_code.mgt.gz').files[0]
+        file.validate()
+        file.start = 0
+        file.validate()
+        file.start = 0xffff
+        file.validate()
+        file.start = None
+        self.assertRaises(ValueError, File.validate, file)
+        file.start = -1
+        self.assertRaises(ValueError, File.validate, file)
+        file.start = 0x10000
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_zx_code_length(self):
+        file = Disk.open(f'{TESTDIR}/zx_code.mgt.gz').files[0]
+        file.validate()
+        file.data = bytes()
+        file.validate()
+        file.data = bytes(1)
+        file.validate()
+        file.data = bytes(0xffff)
+        file.validate()
+        file.data = bytes(0x10000)
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_zx_code_execute(self):
+        file = Disk.open(f'{TESTDIR}/zx_code.mgt.gz').files[0]
+        file.validate()
+        file.execute = 0
+        file.validate()
+        file.execute = 0xffff
+        file.validate()
+        file.execute = None
+        file.validate()
+        file.execute = -1
+        self.assertRaises(ValueError, File.validate, file)
+        file.execute = 0x10000
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_zx_snp_48k(self):
+        file = Disk.open(f'{TESTDIR}/zx_snap_48k.mgt.gz').files[0]
+        file.validate()
+        file.data = bytes(0xbfff)
+        self.assertRaises(ValueError, File.validate, file)
+        file.data = bytes(0xc001)
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_zx_screen(self):
+        file = Disk.open(f'{TESTDIR}/zx_screen.mgt.gz').files[0]
+        file.validate()
+        file.data = bytes(0x1aff)
+        self.assertRaises(ValueError, File.validate, file)
+        file.data = bytes(0x1b01)
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_zx_snp_128k(self):
+        file = Disk.open(f'{TESTDIR}/zx_snap_128k.mgt.gz').files[0]
+        file.validate()
+        file.data = bytes(0x20000)
+        self.assertRaises(ValueError, File.validate, file)
+        file.data = bytes(0x20002)
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_zx_execute(self):
+        file = Disk.open(f'{TESTDIR}/zx_execute.mgt.gz').files[0]
+        file.validate()
+        file.data = bytes(509)
+        file.validate()
+        file.data = bytes(511)
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_basic_length(self):
+        file = Disk.open(f'{TESTDIR}/basic_auto.mgt.gz').files[0]
+        file.validate()
+        file.data = bytes(0x83fff)
+        file.validate()
+        file.data += b'\x00'
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_basic_basic_offsets(self):
+        file = Disk.open(f'{TESTDIR}/basic_vars.mgt.gz').files[0]
+        file.validate()
+        file.basic_offsets = [file.length, file.length, file.length + 1]
+        self.assertRaises(ValueError, File.validate, file)
+        file.basic_offsets = [file.length, file.length]
+        self.assertRaises(ValueError, File.validate, file)
+        file.basic_offsets = [file.length]
+        self.assertRaises(ValueError, File.validate, file)
+        file.basic_offsets = []
+        self.assertRaises(ValueError, File.validate, file)
+        file.basic_offsets = None
+        self.assertRaises(ValueError, File.validate, file)
+        file.basic_offsets = [3, 2, 1]
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_basic_autorun(self):
+        file = Disk.open(f'{TESTDIR}/basic_auto.mgt.gz').files[0]
+        file.validate()
+        file.execute = None
+        file.validate()
+        file.execute = 0
+        file.validate()
+        file.execute = 0xffff
+        file.validate()
+        file.execute = -1
+        self.assertRaises(ValueError, File.validate, file)
+        file.execute = 0x10000
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_data_start(self):
+        file = Disk.open(f'{TESTDIR}/data.mgt.gz').files[0]
+        file.validate()
+        file.start = 0
+        file.validate()
+        file.start = 0x7ffff
+        file.validate()
+        file.start = None
+        self.assertRaises(ValueError, File.validate, file)
+        file.start = -1
+        self.assertRaises(ValueError, File.validate, file)
+        file.start = 0x80000
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_data_length(self):
+        file = Disk.open(f'{TESTDIR}/data.mgt.gz').files[0]
+        file.validate()
+        file.data = bytes(0x83fff)
+        file.validate()
+        file.data += b'\x00'
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_data_datavar(self):
+        file = Disk.open(f'{TESTDIR}/data.mgt.gz').files[0]
+        file.validate()
+        file.data_var = 'a' * 10
+        file.validate()
+        file.data_var = 'a' * 11
+        self.assertRaises(ValueError, File.validate, file)
+        file.data_var = '?'
+        self.assertRaises(ValueError, File.validate, file)
+        file.data_var = ''
+        self.assertRaises(ValueError, File.validate, file)
+        file.data_var = None
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_data_str_start(self):
+        file = Disk.open(f'{TESTDIR}/data_str1.mgt.gz').files[0]
+        file.validate()
+        file.start = 0
+        file.validate()
+        file.start = 0x7ffff
+        file.validate()
+        file.start = None
+        self.assertRaises(ValueError, File.validate, file)
+        file.start = -1
+        self.assertRaises(ValueError, File.validate, file)
+        file.start = 0x80000
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_data_str_length(self):
+        file = Disk.open(f'{TESTDIR}/data_str1.mgt.gz').files[0]
+        file.validate()
+        file.data = bytes((0x83fff))
+        file.validate()
+        file.data += b'\x00'
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_data_str_datavar(self):
+        file = Disk.open(f'{TESTDIR}/data_str1.mgt.gz').files[0]
+        file.validate()
+        file.data_var = 'a' * 10
+        file.validate()
+        file.data_var = 'a' * 11
+        self.assertRaises(ValueError, File.validate, file)
+        file.data_var = '?'
+        self.assertRaises(ValueError, File.validate, file)
+        file.data_var = ''
+        self.assertRaises(ValueError, File.validate, file)
+        file.data_var = None
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_code_start(self):
+        file = Disk.open(f'{TESTDIR}/code.mgt.gz').files[0]
+        file.validate()
+        file.start = 0
+        file.validate()
+        file.start = 0x7ffff
+        file.validate()
+        file.start = None
+        self.assertRaises(ValueError, File.validate, file)
+        file.start = -1
+        self.assertRaises(ValueError, File.validate, file)
+        file.start = 0x80000
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_code_length(self):
+        file = Disk.open(f'{TESTDIR}/code_auto.mgt.gz').files[0]
+        file.validate()
+        file.data = bytes(0x83fff)
+        file.validate()
+        file.data += b'\x00'
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_code_execute(self):
+        file = Disk.open(f'{TESTDIR}/code_auto.mgt.gz').files[0]
+        file.validate()
+        file.execute = 0
+        file.validate()
+        file.execute = 0x7ffff
+        file.validate()
+        file.execute = None
+        file.validate()
+        file.execute = -1
+        self.assertRaises(ValueError, File.validate, file)
+        file.execute = 0x80000
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_screen_mode_1_length(self):
+        file = Disk.open(f'{TESTDIR}/screen_1.mgt.gz').files[0]
+        file.validate()
+        file.data = bytes(0x1b29 - 1)
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_screen_mode_2_length(self):
+        file = Disk.open(f'{TESTDIR}/screen_2.mgt.gz').files[0]
+        file.validate()
+        file.data = bytes(0x3829 - 1)
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_screen_mode_3_length(self):
+        file = Disk.open(f'{TESTDIR}/screen_3.mgt.gz').files[0]
+        file.validate()
+        file.data = bytes(0x6029 - 1)
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_screen_mode_4_length(self):
+        file = Disk.open(f'{TESTDIR}/screen_4.mgt.gz').files[0]
+        file.validate()
+        file.data = bytes(0x6029 - 1)
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_screen_terminator(self):
+        file = Disk.open(f'{TESTDIR}/screen_1.mgt.gz').files[0]
+        file.validate()
+        file.data += b'\x00'
+        self.assertRaises(ValueError, File.validate, file)
+        file = Disk.open(f'{TESTDIR}/screen_2.mgt.gz').files[0]
+        file.validate()
+        file.data += b'\x00'
+        self.assertRaises(ValueError, File.validate, file)
+        file = Disk.open(f'{TESTDIR}/screen_3.mgt.gz').files[0]
+        file.validate()
+        file.data += b'\x00'
+        self.assertRaises(ValueError, File.validate, file)
+        file = Disk.open(f'{TESTDIR}/screen_4.mgt.gz').files[0]
+        file.validate()
+        file.data += b'\x00'
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_screen_mode(self):
+        file = Disk.open(f'{TESTDIR}/screen_4.mgt.gz').files[0]
+        file.validate()
+        file.screen_mode = None
+        self.assertRaises(ValueError, File.validate, file)
+        file.screen_mode = 0
+        self.assertRaises(ValueError, File.validate, file)
+        file.screen_mode = 5
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_dir(self):
+        file = Disk.open(f'{TESTDIR}/dir.mgt.gz').files[0]
+        file.validate()
+        file.dir = 0
+        self.assertRaises(ValueError, File.validate, file)
+        file.dir = 255
+        self.assertRaises(ValueError, File.validate, file)
+        file.dir = None
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_dir_driver_pos(self):
+        file = Disk.open(f'{TESTDIR}/dir.mgt.gz').files[0]
+        file.validate()
+        file.driver_pos = bytes([0, 0, 64, 64])
+        file.validate()
+        file.driver_pos = bytes()
+        self.assertRaises(ValueError, File.validate, file)
+        file.driver_pos = bytes([0, 0, 64])
+        self.assertRaises(ValueError, File.validate, file)
+        file.driver_pos = bytes([0, 0, 64, 64, 0])
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_driver_app_start(self):
+        file = Disk.open(f'{TESTDIR}/driver_app.mgt.gz').files[0]
+        file.validate()
+        file.start = 0
+        file.validate()
+        file.start = 0x7ffff
+        file.validate()
+        file.start = None
+        self.assertRaises(ValueError, File.validate, file)
+        file.start = -1
+        self.assertRaises(ValueError, File.validate, file)
+        file.start = 0x80000
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_driver_app_length(self):
+        file = Disk.open(f'{TESTDIR}/driver_app.mgt.gz').files[0]
+        file.validate()
+        file.data = bytes(0x83fff)
+        file.validate()
+        file.data += b'\x00'
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_driver_boot_start(self):
+        file = Disk.open(f'{TESTDIR}/driver_boot.mgt.gz').files[0]
+        file.validate()
+        file.start = 0
+        file.validate()
+        file.start = 0x7ffff
+        file.validate()
+        file.start = None
+        self.assertRaises(ValueError, File.validate, file)
+        file.start = -1
+        self.assertRaises(ValueError, File.validate, file)
+        file.start = 0x80000
+        self.assertRaises(ValueError, File.validate, file)
+
+    def test_validate_driver_boot_length(self):
+        file = Disk.open(f'{TESTDIR}/driver_boot.mgt.gz').files[0]
+        file.validate()
+        file.data = bytes(0x83fff)
+        file.validate()
+        file.data += b'\x00'
+        self.assertRaises(ValueError, File.validate, file)
+
     def test_to_dir(self):
         file = File()
+        file.type = FileType.DIR
+        file.name = 'dir'
+        file.dir = 42
         dir, sector_map = file.to_dir()
         self.assertEqual(sector_map, File.empty_sector_map())
-        self.assertEqual(dir, bytes(1) + bytes(b' '*10) + bytes(256-11))
-        self.assertEqual(len(file.header), File.type_header_size(file.type))
-
-    def test_to_dir_none(self):
-        file = File()
-        file.type = FileType.NONE
-        dir, sector_map = file.to_dir()
-        self.assertEqual(dir[0], FileType.NONE)
-        self.assertNotEqual(dir[1], 0)
-        self.assertEqual(sector_map, File.empty_sector_map())
+        self.assertEqual(dir[254], file.dir)
         self.assertEqual(len(file.header), File.type_header_size(file.type))
 
     def test_to_dir_zx_basic(self):
         file = File()
         file.type = FileType.ZX_BASIC
+        file.name = 'zx_basic'
         file.data = bytes(0x1234)
         file.start = 0x5678
-        file.basic_offsets = [0x9abc]
+        file.basic_offsets = [file.length]
         file.execute = None
         dir, sector_map = file.to_dir()
         self.assertEqual(dir[211], File.tape_id_from_type(file.type))
@@ -270,6 +752,7 @@ class FileTests(unittest.TestCase):
     def test_to_dir_zx_data(self):
         file = File()
         file.type = FileType.ZX_DATA
+        file.name = 'zx_data'
         file.data = bytes(0x1234)
         file.start = 0x5678
         file.data_var = 'x'
@@ -284,6 +767,7 @@ class FileTests(unittest.TestCase):
     def test_to_dir_zx_data_str(self):
         file = File()
         file.type = FileType.ZX_DATA_STR
+        file.name = 'zx_datastr'
         file.data = bytes(0x1234)
         file.start = 0x5678
         file.data_var = 'x'
@@ -298,6 +782,7 @@ class FileTests(unittest.TestCase):
     def test_to_dir_zx_code(self):
         file = File()
         file.type = FileType.ZX_CODE
+        file.name = 'zx_code'
         file.data = bytes(0x1234)
         file.start = 0x5678
         file.execute = 0x9abc
@@ -314,7 +799,8 @@ class FileTests(unittest.TestCase):
     def test_to_dir_zx_snp_48k(self):
         file = File()
         file.type = FileType.ZX_SNP_48K
-        file.data = bytes(0x1234)  # length ignored
+        file.name = 'zx_snp48k'
+        file.data = bytes(0xc000)
         dir, sector_map = file.to_dir()
         self.assertEqual(dir[211], File.tape_id_from_type(file.type))
         self.assertEqual(dir[212:212+2], File.word_to_le(0xc000))  # fixed length
@@ -324,6 +810,7 @@ class FileTests(unittest.TestCase):
     def test_to_dir_mdrv(self):
         file = File()
         file.type = FileType.ZX_MDRV
+        file.name = 'zx_mdrv'
         file.data = bytes(0x1234)
         dir, sector_map = file.to_dir()
         self.assertEqual(dir[210:256], file.entry[210:256])
@@ -333,6 +820,7 @@ class FileTests(unittest.TestCase):
     def test_to_dir_zx_screen(self):
         file = File()
         file.type = FileType.ZX_SCREEN
+        file.name = 'zx_screen'
         file.data = bytes(0x1b00)
         file.start = 0x4000
         dir, sector_map = file.to_dir()
@@ -345,6 +833,7 @@ class FileTests(unittest.TestCase):
     def test_to_dir_special(self):
         file = File()
         file.type = FileType.SPECIAL
+        file.name = 'special'
         file.data = bytes(0x1234)
         dir, sector_map = file.to_dir()
         self.assertEqual(dir[210:256], file.entry[210:256])
@@ -354,6 +843,7 @@ class FileTests(unittest.TestCase):
     def test_to_dir_zx_snp_128k(self):
         file = File()
         file.type = FileType.ZX_SNP_128K
+        file.name = 'zx_snp128k'
         file.data = bytes(0x20001)
         dir, sector_map = file.to_dir()
         self.assertEqual(dir[210], 0x20001 >> 16)  # fixed length high byte
@@ -365,6 +855,7 @@ class FileTests(unittest.TestCase):
     def test_to_dir_opentype(self):
         file = File()
         file.type = FileType.OPENTYPE
+        file.name = 'opentype'
         file.data = bytes(0x1234)
         dir, sector_map = file.to_dir()
         self.assertEqual(dir[210], file.length >> 16)
@@ -379,6 +870,7 @@ class FileTests(unittest.TestCase):
     def test_to_dir_zx_execute(self):
         file = File()
         file.type = FileType.ZX_EXECUTE
+        file.name = 'zx_execute'
         file.data = bytes(510)
         dir, sector_map = file.to_dir()
         self.assertEqual(dir[212:212+2], File.word_to_le(510))
@@ -388,6 +880,7 @@ class FileTests(unittest.TestCase):
     def test_to_dir_unidos_create(self):
         file = File()
         file.type = FileType.UNIDOS_CREATE
+        file.name = 'uni_create'
         file.data = bytes(0x1234)
         dir, sector_map = file.to_dir()
         self.assertEqual(dir[212:212+2], File.word_to_le(0x1234))
@@ -397,7 +890,8 @@ class FileTests(unittest.TestCase):
     def test_to_dir_basic(self):
         file = File()
         file.type = FileType.BASIC
-        file.start = 0x123456
+        file.name = 'basic'
+        file.start = 0x12345
         file.basic_offsets = [21, 121, 654]
         file.data = bytes(0x54321)
         file.execute = None
@@ -414,7 +908,8 @@ class FileTests(unittest.TestCase):
     def test_to_dir_data(self):
         file = File()
         file.type = FileType.DATA
-        file.start = 0x123456
+        file.name = 'data'
+        file.start = 0x12345
         file.data = bytes(0x54321)
         file.data_var = 'abcde'
         dir, sector_map = file.to_dir()
@@ -428,7 +923,8 @@ class FileTests(unittest.TestCase):
     def test_to_dir_data_str(self):
         file = File()
         file.type = FileType.DATA_STR
-        file.start = 0x123456
+        file.name = 'data_str'
+        file.start = 0x12345
         file.data = bytes(0x54321)
         file.data_var = 'zyx'
         dir, sector_map = file.to_dir()
@@ -442,11 +938,13 @@ class FileTests(unittest.TestCase):
     def test_to_dir_code(self):
         file = File()
         file.type = FileType.CODE
-        file.start = 0x123456
+        file.name = 'code'
+        file.start = 0x12345
         file.data = bytes(0x54321)
         file.execute = None
         file.dir = 123
         dir, sector_map = file.to_dir()
+        self.assertEqual(dir[220], 0)
         self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
         self.assertEqual(dir[239:239+3], File.len_to_triple(file.length))
         self.assertEqual(dir[242:242+3], File.exec_to_triple(file.execute))
@@ -473,9 +971,10 @@ class FileTests(unittest.TestCase):
     def test_to_dir_screen(self):
         file = File()
         file.type = FileType.SCREEN
+        file.name = 'screen'
         file.screen_mode = 1
-        file.start = 0x123456
-        file.data = bytes(0x54321)
+        file.start = 0x12345
+        file.data = bytes(0x54321) + b'\xff'
         dir, sector_map = file.to_dir()
         self.assertEqual(dir[221], file.screen_mode - 1)
         self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
@@ -495,6 +994,7 @@ class FileTests(unittest.TestCase):
     def test_to_dir_dir(self):
         file = File()
         file.type = FileType.DIR
+        file.name = 'dir'
         file.dir = 42
         dir, sector_map = file.to_dir()
         self.assertEqual(dir[250], file.dir)
@@ -506,7 +1006,8 @@ class FileTests(unittest.TestCase):
     def test_to_dir_driver_app(self):
         file = File()
         file.type = FileType.DRIVER_APP
-        file.start = 0x123456
+        file.name = 'driver_app'
+        file.start = 0x12345
         file.data = bytes(0x54321)
         dir, sector_map = file.to_dir()
         self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
@@ -517,7 +1018,8 @@ class FileTests(unittest.TestCase):
     def test_to_dir_driver_boot(self):
         file = File()
         file.type = FileType.DRIVER_BOOT
-        file.start = 0x123456
+        file.name = 'driverboot'
+        file.start = 0x12345
         file.data = bytes(0x54321)
         dir, sector_map = file.to_dir()
         self.assertEqual(dir[236:236+3], File.addr_to_triple(file.start))
