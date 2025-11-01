@@ -59,6 +59,8 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.driver_pos)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
+        self.assertIsNone(file._save_mode)
+        self.assertIsNone(file._data)
 
     def test_str_symbol(self):
         file = File()
@@ -1064,6 +1066,8 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
+        self.assertIsNone(file._save_mode)
+        self.assertIsNone(file._data)
         self.assertFalse(file.bootable)
 
     def test_type_basic_auto(self):
@@ -1087,6 +1091,8 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
+        self.assertIsNone(file._save_mode)
+        self.assertIsNone(file._data)
         self.assertFalse(file.bootable)
 
     def test_type_data(self):
@@ -1109,6 +1115,8 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
+        self.assertIsNone(file._save_mode)
+        self.assertIsNone(file._data)
         self.assertFalse(file.bootable)
 
     def test_type_data_str(self):
@@ -1131,6 +1139,8 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
+        self.assertIsNone(file._save_mode)
+        self.assertIsNone(file._data)
         self.assertFalse(file.bootable)
 
     def test_type_data_str_1(self):
@@ -1153,6 +1163,8 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.screen_mode)
+        self.assertIsNone(file._save_mode)
+        self.assertIsNone(file._data)
         self.assertFalse(file.bootable)
 
     def test_type_code(self):
@@ -1175,6 +1187,8 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
+        self.assertIsNone(file._save_mode)
+        self.assertIsNone(file._data)
         self.assertFalse(file.bootable)
 
     def test_type_code_auto(self):
@@ -1197,6 +1211,8 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
+        self.assertIsNone(file._save_mode)
+        self.assertIsNone(file._data)
         self.assertFalse(file.bootable)
 
     def test_type_screen_1(self):
@@ -1220,6 +1236,8 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
+        self.assertIsNone(file._save_mode)
+        self.assertIsNone(file._data)
         self.assertFalse(file.bootable)
 
     def test_type_screen_2(self):
@@ -1246,6 +1264,8 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
+        self.assertIsNone(file._save_mode)
+        self.assertIsNone(file._data)
         self.assertFalse(file.bootable)
 
     def test_type_screen_3(self):
@@ -1270,6 +1290,8 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
+        self.assertIsNone(file._save_mode)
+        self.assertIsNone(file._data)
         self.assertFalse(file.bootable)
 
     def test_type_screen_4(self):
@@ -1294,6 +1316,8 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.dir)
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
+        self.assertIsNone(file._save_mode)
+        self.assertIsNone(file._data)
         self.assertFalse(file.bootable)
 
     def test_type_screen_flash(self):
@@ -1302,6 +1326,8 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.type, FileType.SCREEN)
         self.assertEqual(file.length, 6912+41)
         self.assertEqual(file.screen_mode, 1)
+        self.assertIsNone(file._save_mode)
+        self.assertIsNone(file._data)
 
     def test_type_screen_line(self):
         file = Disk.open(f'{TESTDIR}/screen_line.mgt.gz').files[0]
@@ -1309,6 +1335,183 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.type, FileType.SCREEN)
         self.assertEqual(file.length, 24576+549)
         self.assertEqual(file.screen_mode, 4)
+        self.assertIsNone(file._save_mode)
+        self.assertIsNone(file._data)
+
+    def test_type_screen_mbasic_savemode1(self):
+        disk = Disk.open(f'{TESTDIR}/mbasic_compress_screen.mgt.gz')
+        file = disk.files[0]
+        self.assertEqual(file.type, FileType.SCREEN)
+        self.assertEqual(file.screen_mode, 1)
+        self.assertEqual(file.sectors, 14)
+        self.assertEqual(file.length, 6912+41)
+        self.assertIsNone(file._save_mode)
+        self.assertIsNone(file._data)
+        file = disk.files[1]
+        self.assertEqual(file.type, FileType.SCREEN)
+        self.assertEqual(file.screen_mode, 2)
+        self.assertEqual(file.sectors, 29)
+        self.assertEqual(file.length, 8192+6144+41)
+        self.assertIsNone(file._save_mode)
+        self.assertIsNone(file._data)
+        file = disk.files[2]
+        self.assertEqual(file.type, FileType.SCREEN)
+        self.assertEqual(file.screen_mode, 3)
+        self.assertEqual(file.sectors, 49)
+        self.assertEqual(file.length, 24576+41)
+        self.assertIsNone(file._save_mode)
+        self.assertIsNone(file._data)
+        file = disk.files[3]
+        self.assertEqual(file.type, FileType.SCREEN)
+        self.assertEqual(file.screen_mode, 4)
+        self.assertEqual(file.sectors, 49)
+        self.assertEqual(file.length, 24576+41)
+        self.assertIsNone(file._save_mode)
+        self.assertIsNone(file._data)
+
+    def test_screen_mbasic_mode1_savemode2(self):
+        disk = Disk.open(f'{TESTDIR}/mbasic_compress_screen.mgt.gz')
+        file = disk.files[4]
+        self.assertEqual(file.type, FileType.SCREEN)
+        self.assertEqual(file.screen_mode, 1)
+        self.assertEqual(file._save_mode, 2)
+        self.assertEqual(len(file._data or bytes()), 3561)
+        self.assertEqual(file.length, disk.files[0].length)
+        self.assertEqual(file.data, disk.files[0].data)
+
+    def test_screen_mbasic_mode2_savemode2(self):
+        disk = Disk.open(f'{TESTDIR}/mbasic_compress_screen.mgt.gz')
+        file = disk.files[5]
+        palend = file.data.index(b'\xff', 6144)
+        self.assertEqual(file.type, FileType.SCREEN)
+        self.assertEqual(file.screen_mode, 2)
+        self.assertEqual(file._save_mode, 2)
+        self.assertEqual(len(file._data or bytes()), 7641)
+        self.assertEqual(file.length, disk.files[1].length)
+        self.assertEqual(file.data[:palend+1], disk.files[1].data[:palend+1])
+        self.assertEqual(file.data[0x2000], disk.files[1].data[0x2000])
+
+    def test_screen_mbasic_mode3_savemode2(self):
+        disk = Disk.open(f'{TESTDIR}/mbasic_compress_screen.mgt.gz')
+        file = disk.files[6]
+        self.assertEqual(file.type, FileType.SCREEN)
+        self.assertEqual(file.screen_mode, 3)
+        self.assertEqual(file._save_mode, 2)
+        self.assertEqual(len(file._data or bytes()), 11211)
+        self.assertEqual(file.length, disk.files[2].length)
+        self.assertEqual(file.data, disk.files[2].data)
+
+    def test_screen_mbasic_mode4_savemode2(self):
+        disk = Disk.open(f'{TESTDIR}/mbasic_compress_screen.mgt.gz')
+        file = disk.files[7]
+        self.assertEqual(file.type, FileType.SCREEN)
+        self.assertEqual(file.screen_mode, 4)
+        self.assertEqual(file._save_mode, 2)
+        self.assertEqual(len(file._data or bytes()), 11721)
+        self.assertEqual(file.length, disk.files[3].length)
+        self.assertEqual(file.data, disk.files[3].data)
+
+    def test_screen_mbasic_mode1_savemode3(self):
+        disk = Disk.open(f'{TESTDIR}/mbasic_compress_screen.mgt.gz')
+        file = disk.files[8]
+        self.assertEqual(file.type, FileType.SCREEN)
+        self.assertEqual(file.screen_mode, 1)
+        self.assertEqual(file._save_mode, 3)
+        self.assertEqual(len(file._data or bytes()), 4581)
+        self.assertEqual(file.length, disk.files[0].length)
+        self.assertEqual(file.data, disk.files[0].data)
+
+    def test_screen_mbasic_mode2_savemode3(self):
+        disk = Disk.open(f'{TESTDIR}/mbasic_compress_screen.mgt.gz')
+        file = disk.files[9]
+        palend = file.data.index(b'\xff', 6144)
+        self.assertEqual(file.type, FileType.SCREEN)
+        self.assertEqual(file.screen_mode, 2)
+        self.assertEqual(file._save_mode, 3)
+        self.assertEqual(len(file._data or bytes()), 10191)
+        self.assertEqual(file.length, disk.files[1].length)
+        self.assertEqual(file.data[:palend+1], disk.files[1].data[:palend+1])
+        self.assertEqual(file.data[0x2000], disk.files[1].data[0x2000])
+
+    def test_screen_mbasic_mode3_savemode3(self):
+        disk = Disk.open(f'{TESTDIR}/mbasic_compress_screen.mgt.gz')
+        file = disk.files[10]
+        self.assertEqual(file.type, FileType.SCREEN)
+        self.assertEqual(file.screen_mode, 3)
+        self.assertEqual(file._save_mode, 3)
+        self.assertEqual(len(file._data or bytes()), 7641)
+        self.assertEqual(file.length, disk.files[2].length)
+        self.assertEqual(file.data, disk.files[2].data)
+
+    def test_screen_mbasic_mode4_savemode3(self):
+        disk = Disk.open(f'{TESTDIR}/mbasic_compress_screen.mgt.gz')
+        file = disk.files[11]
+        self.assertEqual(file.type, FileType.SCREEN)
+        self.assertEqual(file.screen_mode, 4)
+        self.assertEqual(file._save_mode, 3)
+        self.assertEqual(len(file._data or bytes()), 9171)
+        self.assertEqual(file.length, disk.files[3].length)
+        self.assertEqual(file.data, disk.files[3].data)
+
+    def test_code_mbasic_savemode2(self):
+        disk = Disk.open(f'{TESTDIR}/mbasic_compress_other.mgt.gz')
+        file = disk.files[3]
+        self.assertEqual(disk.files[0].type, FileType.CODE)
+        self.assertEqual(file.type, FileType.CODE)
+        self.assertEqual(file._save_mode, 2)
+        self.assertEqual(len(file._data or bytes()), 1011)
+        self.assertEqual(file.length, disk.files[0].length)
+        self.assertEqual(file.data, disk.files[0].data)
+
+    def test_data_str_mbasic_savemode2(self):
+        disk = Disk.open(f'{TESTDIR}/mbasic_compress_other.mgt.gz')
+        file = disk.files[4]
+        self.assertEqual(disk.files[1].type, FileType.DATA_STR)
+        self.assertEqual(file.type, FileType.DATA_STR)
+        self.assertEqual(file._save_mode, 2)
+        self.assertEqual(len(file._data or bytes()), 34)
+        self.assertEqual(file.length, disk.files[1].length)
+        self.assertEqual(file.data, disk.files[1].data)
+
+    def test_data_mbasic_savemode2(self):
+        disk = Disk.open(f'{TESTDIR}/mbasic_compress_other.mgt.gz')
+        file = disk.files[5]
+        self.assertEqual(disk.files[2].type, FileType.DATA)
+        self.assertEqual(file.type, FileType.DATA)
+        self.assertEqual(file._save_mode, 2)  # still 2
+        self.assertEqual(len(file._data or bytes()), 32)
+        self.assertEqual(file.length, disk.files[2].length)
+        self.assertEqual(file.data, disk.files[2].data)
+
+    def test_code_mbasic_savemode3(self):
+        disk = Disk.open(f'{TESTDIR}/mbasic_compress_other.mgt.gz')
+        file = disk.files[6]
+        self.assertEqual(disk.files[0].type, FileType.CODE)
+        self.assertEqual(file.type, FileType.CODE)
+        self.assertEqual(file._save_mode, 2)  # still 2
+        self.assertEqual(len(file._data or bytes()), 1011)
+        self.assertEqual(file.length, disk.files[0].length)
+        self.assertEqual(file.data, disk.files[0].data)
+
+    def test_data_str_mbasic_savemode3(self):
+        disk = Disk.open(f'{TESTDIR}/mbasic_compress_other.mgt.gz')
+        file = disk.files[7]
+        self.assertEqual(disk.files[1].type, FileType.DATA_STR)
+        self.assertEqual(file.type, FileType.DATA_STR)
+        self.assertEqual(file._save_mode, 2)  # still 2
+        self.assertEqual(len(file._data or bytes()), 34)
+        self.assertEqual(file.length, disk.files[1].length)
+        self.assertEqual(file.data, disk.files[1].data)
+
+    def test_data_mbasic_savemode3(self):
+        disk = Disk.open(f'{TESTDIR}/mbasic_compress_other.mgt.gz')
+        file = disk.files[8]
+        self.assertEqual(disk.files[2].type, FileType.DATA)
+        self.assertEqual(file.type, FileType.DATA)
+        self.assertEqual(file._save_mode, 2)  # still 2
+        self.assertEqual(len(file._data or bytes()), 32)
+        self.assertEqual(file.length, disk.files[2].length)
+        self.assertEqual(file.data, disk.files[2].data)
 
     def test_type_dir(self):
         file = Disk.open(f'{TESTDIR}/dir.mgt.gz').files[0]

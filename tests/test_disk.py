@@ -5,7 +5,7 @@ import unittest
 
 from bitarray import bitarray
 
-from mgtdisklib import Disk, DiskType, FileType, Image, MGTImage
+from mgtdisklib import Disk, DiskType, File, FileType, Image, MGTImage
 from test_utils import TESTDIR, make_temp_file
 
 
@@ -510,6 +510,15 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(file.data, data_ret)
         self.assertEqual(file.header, b'')
         self.assertEqual(file.data, bytes(b'\xe5' * 80*2*9*512))
+
+    def test_read_data_uncompress_fail(self):
+        image = Image.open(f'{TESTDIR}/mbasic_compress_screen.mgt.gz')
+        file = Disk.from_image(image).files[11]
+        data_sectors = File.sector_list(file.sector_map)
+        image.write_sector(*data_sectors[-1], bytes(512))  # corrupt last sector
+        file = Disk.from_image(image).files[11]
+        self.assertEqual(file.length, 9171)
+        self.assertIsNone(file._data)
 
     def test_write_data(self):
         image = Image.open(f'{TESTDIR}/samdos2.mgt.gz')

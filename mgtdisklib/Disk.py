@@ -286,6 +286,15 @@ class Disk:
 
         file.header = data[:header_size]
         file.data = data[header_size:length]
+
+        try:
+            if file._save_mode == 2:
+                file.data, file._data = File.uncompress_mode2(file.data), file.data
+            elif file._save_mode == 3 and file.screen_mode is not None:
+                file.data, file._data = File.uncompress_mode3(file.data, file.screen_mode), file.data
+        except Exception:
+            pass
+
         return file.data
 
     @staticmethod

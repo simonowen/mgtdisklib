@@ -6,6 +6,7 @@
 
 import os
 import struct
+from collections import deque
 from datetime import datetime
 from enum import Enum, IntEnum
 from typing import List, Optional, Tuple
@@ -99,7 +100,8 @@ class File:
 
     __slots__ = ('entry', 'type', 'hidden', 'protected', 'name_raw', 'name', '_first_sector',
                  'sector_map', '_sectors', 'start', '_length', 'execute', 'basic_offsets',
-                 'time', 'dir', 'driver_pos', 'data_var', 'screen_mode', 'header', 'data')
+                 'time', 'dir', 'driver_pos', 'data_var', 'screen_mode', '_save_mode',
+                 'header', 'data', '_data')
 
     def __init__(self) -> None:
         self.entry: bytes = bytes(256)
@@ -120,8 +122,10 @@ class File:
         self.driver_pos: Optional[bytes] = None
         self.data_var: Optional[str] = None
         self.screen_mode: Optional[int] = None
+        self._save_mode: Optional[int] = None  # as read
         self.header = bytes()
         self.data = bytes()
+        self._data: Optional[bytes] = None  # compressed data, as read
 
     def __str__(self) -> str:
         """String representation of File, like directory text"""
@@ -225,6 +229,9 @@ class File:
         zx_execute = None if data[219] == 0x00 else File.le_word(data[218:218+2])
         zx_data_var = chr(ord('a') + (data[216] & 0x3f) - 1)
 
+        sam_flags = data[220] & 0x0f  # TODO: only b3-0?
+        sam_save_mode = [None, 2, None, 3][(sam_flags >> 2) & 0x3]
+
         sam_vars_offset = File.triple_to_len(data[221:221+3])
         sam_gap_offset = File.triple_to_len(data[224:224+3])
         sam_str_vars_offset = File.triple_to_len(data[227:227+3])
@@ -275,18 +282,22 @@ class File:
             file.basic_offsets = [sam_vars_offset, sam_gap_offset, sam_str_vars_offset]
             file._length = sam_length
             file.execute = sam_autorun
+            file._save_mode = sam_save_mode
         elif file.type in (FileType.DATA, FileType.DATA_STR):
             file.start = sam_start
             file._length = sam_length
             file.data_var = sam_data_var
+            file._save_mode = sam_save_mode
         elif file.type == FileType.CODE:
             file.start = sam_start
             file._length = sam_length
             file.execute = sam_execute
+            file._save_mode = sam_save_mode
         elif file.type == FileType.SCREEN:
             file.start = sam_start
             file._length = sam_length
             file.screen_mode = 1 + (data[221] & 0x3)
+            file._save_mode = sam_save_mode
         elif file.type == FileType.DRIVER_APP:
             file.start = sam_start
             file._length = sam_length
@@ -378,6 +389,7 @@ class File:
         sam_autorun = File.line_to_triple(self.execute)
         sam_datavar = (self.data_var or '')[:10]  # BASIC limit
         sam_dir = self.dir or 0
+        sam_flags = 0x0  # TODO: support SAVE MODE
 
         if File.type_has_data_header(self.type) and File.is_sam_file_type(self.type):
             data[211] = self.type.value
@@ -427,6 +439,7 @@ class File:
             data[212:212+2] = zx_length
         elif self.type == FileType.BASIC:
             basic_offsets = self.basic_offsets or [0, 0, 0]
+            data[220] = sam_flags
             data[221:221+3] = File.len_to_triple(basic_offsets[0])
             data[224:224+3] = File.len_to_triple(basic_offsets[1])
             data[227:227+3] = File.len_to_triple(basic_offsets[2])
@@ -434,15 +447,18 @@ class File:
             data[239:239+3] = sam_length
             data[242:242+3] = sam_autorun
         elif self.type in (FileType.DATA, FileType.DATA_STR):
+            data[220] = sam_flags
             data[221] = len(sam_datavar) & 0xf
             data[222:222+len(sam_datavar)] = sam_datavar.encode('ascii', errors='ignore')
             data[236:236+3] = sam_start
             data[239:239+3] = sam_length
         elif self.type == FileType.CODE:
+            data[220] = sam_flags
             data[236:236+3] = sam_start
             data[239:239+3] = sam_length
             data[242:242+3] = sam_execute
         elif self.type == FileType.SCREEN:
+            data[220] = sam_flags
             data[221] = ((self.screen_mode or 1) - 1) & 0x3
             data[236:236+3] = sam_start
             data[239:239+3] = sam_length
@@ -513,6 +529,82 @@ class File:
     def data_bytes_per_sector(type: FileType) -> int:
         """Return how many bytes of each sector hold file data"""
         return 512 if File.is_contig_data_type(type) else 510
+
+    @staticmethod
+    def uncompress_mode2(data: bytes) -> bytes:
+        """Uncompress MasterDOS mode 2 data (byte)"""
+        output = bytes()
+        while len(data) > 0:
+            if not data[0]:
+                break
+
+            headlen, escchar, length, outlen = struct.unpack_from('<BBHH', data)
+            data = data[6:]
+
+            block = bytearray()
+            escapes = data[:headlen-5]
+            data = data[len(escapes):]
+            compdata = data[:length]
+            data = data[length:]
+
+            while len(block) < outlen:
+                try:
+                    copylen = compdata.index(escchar)
+                    block.extend(compdata[:copylen])
+                    compdata = compdata[copylen+1:]
+                except ValueError:
+                    block.extend(compdata)
+                    break
+
+                if compdata[0] == escchar:
+                    block.extend([escchar, escapes[0]])
+                    escapes = escapes[1:]
+                    compdata = compdata[1:]
+                else:
+                    byte, runlen = compdata[0:1], compdata[1]
+                    block.extend(byte * (runlen or 256))
+                    compdata = compdata[2:]
+
+            output += bytes(block)
+
+        return output
+
+    @staticmethod
+    def uncompress_mode3(data: bytes, screen_mode: int) -> bytes:
+        """Uncompress MasterDOS mode 3 data (nibble)"""
+        output = bytearray()
+        outidx = 0
+        outlength = 2 * [0x1b00, 0x3800, 0x6000, 0x6000][screen_mode - 1]
+
+        nibbles = deque(n for b in data for n in (b >> 4, b & 0x0f))
+        escchar = nibbles.popleft()
+
+        while outidx < outlength:
+            pix = nibbles.popleft()
+            if pix == escchar:
+                pix = nibbles.popleft()
+                runlen = nibbles.popleft()
+                if runlen & 0x08:
+                    runlen = (((runlen & 0x07) << 4) | nibbles.popleft()) + 12
+                else:
+                    runlen = (runlen & 0x07) + 4
+                if pix == escchar:
+                    runlen -= 3
+            else:
+                runlen = 1
+
+            for _ in range(runlen):
+                offset = ((outidx // 512) * 256) + ((outidx >> 2) & 0x7f) + (128 * (outidx & 1))
+                if len(output) <= offset:
+                    newsize = (offset // 256 + 1) * 256
+                    output.extend(b'\x00' * (newsize - len(output)))
+                output[offset] |= (pix << (2 * (~outidx & 2)))
+                outidx += 1
+
+        remain = data[-(len(nibbles)//2):].lstrip(b'\xff')
+        output.extend(remain[:remain.index(0xff) + 1])
+
+        return bytes(output)
 
     @staticmethod
     def empty_sector_map() -> bitarray:
