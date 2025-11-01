@@ -60,6 +60,7 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.data_var)
         self.assertIsNone(file.screen_mode)
         self.assertIsNone(file._save_mode)
+        self.assertIsNone(file.merge_protect)
         self.assertIsNone(file._data)
 
     def test_str_symbol(self):
@@ -457,6 +458,17 @@ class FileTests(unittest.TestCase):
         dir, _ = file.to_dir()
         self.assertEqual(dir[242:242+3], File.exec_to_triple(file.execute))
         self.assertEqual(dir[254], 0)
+
+    def test_to_dir_code_merge_protect(self):
+        file = File()
+        file.type = FileType.CODE
+        file.name = 'code'
+        file.start = 0x8000
+        file.data = b'\x3e\x04\xd3\xfe\xc9'
+        file.execute = file.start
+        file.merge_protect = True
+        dir, _ = file.to_dir()
+        self.assertEqual(dir[220], 2)
 
     def test_to_dir_screen(self):
         file = File()
@@ -1189,7 +1201,13 @@ class FileTests(unittest.TestCase):
         self.assertIsNone(file.screen_mode)
         self.assertIsNone(file._save_mode)
         self.assertIsNone(file._data)
+        self.assertIsNone(file.merge_protect)
         self.assertFalse(file.bootable)
+
+    def test_type_code_merge_protect(self):
+        file = Disk.open(f'{TESTDIR}/code_merge_protect.mgt.gz').files[0]
+        self.assertEqual(file.type, FileType.CODE)
+        self.assertTrue(file.merge_protect)
 
     def test_type_code_auto(self):
         file = Disk.open(f'{TESTDIR}/code_auto.mgt.gz').files[0]

@@ -101,7 +101,7 @@ class File:
     __slots__ = ('entry', 'type', 'hidden', 'protected', 'name_raw', 'name', '_first_sector',
                  'sector_map', '_sectors', 'start', '_length', 'execute', 'basic_offsets',
                  'time', 'dir', 'driver_pos', 'data_var', 'screen_mode', '_save_mode',
-                 'header', 'data', '_data')
+                 'merge_protect', 'header', 'data', '_data')
 
     def __init__(self) -> None:
         self.entry: bytes = bytes(256)
@@ -123,6 +123,7 @@ class File:
         self.data_var: Optional[str] = None
         self.screen_mode: Optional[int] = None
         self._save_mode: Optional[int] = None  # as read
+        self.merge_protect: Optional[bool] = None
         self.header = bytes()
         self.data = bytes()
         self._data: Optional[bytes] = None  # compressed data, as read
@@ -293,6 +294,7 @@ class File:
             file._length = sam_length
             file.execute = sam_execute
             file._save_mode = sam_save_mode
+            file.merge_protect = True if (sam_flags & 0x2) else None
         elif file.type == FileType.SCREEN:
             file.start = sam_start
             file._length = sam_length
@@ -453,7 +455,7 @@ class File:
             data[236:236+3] = sam_start
             data[239:239+3] = sam_length
         elif self.type == FileType.CODE:
-            data[220] = sam_flags
+            data[220] = sam_flags | (2 if self.merge_protect else 0)
             data[236:236+3] = sam_start
             data[239:239+3] = sam_length
             data[242:242+3] = sam_execute
