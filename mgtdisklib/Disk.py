@@ -5,11 +5,11 @@
 # SPDX-License-Identifier: MIT
 
 import fnmatch
-import functools
 import operator
 import random
 import struct
 from enum import Enum
+from functools import reduce
 from typing import List, Optional, Tuple
 
 from bitarray import bitarray
@@ -47,7 +47,7 @@ class Disk:
     @property
     def sector_map(self) -> bitarray:
         """Combined Bitmap Address Map for all files"""
-        return functools.reduce(operator.or_, (file.sector_map for file in self.files))
+        return reduce(operator.or_, (file.sector_map for file in self.files))
 
     @property
     def dir_sector_map(self) -> bitarray:
@@ -146,6 +146,13 @@ class Disk:
         for file in self.files:
             file.validate()
 
+        special_files = [x for x in self.files if x.type == FileType.SPECIAL]
+        if special_files:
+            special_map = reduce(operator.or_, (x.sector_map for x in special_files))
+            special_count = sum(x.sector_map.count() for x in special_files)
+            if special_map.count() != special_count:
+                raise RuntimeError('SPECIAL file sector maps overlap')
+
     def to_image(self, *, reserved_map: Optional[bitarray] = None) -> Image:
         """Generate MGT disk image from current contents"""
         self.validate()
@@ -155,6 +162,10 @@ class Disk:
 
         reserved_map = reserved_map or bitarray(1600, endian='little')
         data_sector_map = reserved_map[4*10:] | self.dir_sector_map
+
+        special_files = [x for x in self.files if x.type == FileType.SPECIAL]
+        if special_files:
+            data_sector_map |= reduce(operator.or_, (x.sector_map for x in special_files))
 
         dir_sector_map = reserved_map[:self.dir_tracks*10]
         dir_sector_map |= (~self.dir_sector_map >> 4*10)[:self.dir_tracks*10]

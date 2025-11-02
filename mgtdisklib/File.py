@@ -350,10 +350,9 @@ class File:
 
     def allocate(self, disk_map: Optional[bitarray] = None) -> bitarray:
         """Allocate data sectors, updating start track/sector and map"""
-        if disk_map is None:
-            disk_map = File.empty_sector_map()
-
+        disk_map = disk_map or File.empty_sector_map()
         sector_map = File.empty_sector_map()
+
         for _ in range(self.sectors):
             index = disk_map.find(0)
             if index < 0:
@@ -496,7 +495,9 @@ class File:
         """Create directory entry for file, return updated sector map"""
         self.validate()
 
-        disk_map = self.allocate(disk_map)
+        disk_map = disk_map or File.empty_sector_map()
+        if self.type != FileType.SPECIAL or not self.sector_map.any():
+            disk_map = self.allocate(disk_map)
 
         # Use original as a template in case of custom fields.
         data = bytearray(self.entry or bytes(256))

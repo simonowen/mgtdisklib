@@ -64,6 +64,10 @@ class DiskTests(unittest.TestCase):
             self.assertEqual(os.path.getsize(temp_path), 819200)
             self.assertEqual(len(image.data), 819200)
 
+    def test_to_image_empty(self):
+        disk = Disk()
+        disk.to_image()
+
     def test_to_image(self):
         disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
         image = disk.to_image()
@@ -242,6 +246,18 @@ class DiskTests(unittest.TestCase):
         data = image.read_sector(6, 1)
         self.assertEqual(data[9:510], disk.files[0].data[:510-9])
 
+    def test_to_image_special_fixed(self):
+        disk = Disk()
+        disk.add_code_bytes(bytes(512*5), filename='special')
+        disk.files[0].type = FileType.SPECIAL
+        disk.files[0].sector_map.setall(0)
+        disk.files[0].sector_map[5:10] = 1
+        disk.add_code_bytes(bytes(510*10-9), filename='code')
+        image = disk.to_image()
+        disk2 = Disk.from_image(image)
+        self.assertEqual(disk2.files[0].sector_map[:16], bitarray("0000011111000000"))
+        self.assertEqual(disk2.files[1].sector_map[:16], bitarray("1111100000111110"))
+
     def test_validate_empty(self):
         disk = Disk()
         Disk.validate(disk)
@@ -271,7 +287,19 @@ class DiskTests(unittest.TestCase):
         disk.files[1].name = disk.files[0].name
         self.assertEqual(len(disk.files), 2)
         self.assertRaises(RuntimeError, Disk.validate, disk)
-        self.assertRaises(RuntimeError, Disk.to_image, disk)
+
+    def test_validate_special_overlap(self):
+        disk = Disk()
+        special_data = bytes(512 * 10)
+        disk.add_code_bytes(special_data, filename='special1')
+        disk.files[0].type = FileType.SPECIAL
+        disk.files[0].sector_map.setall(0)
+        disk.files[0].sector_map[0:10] = 1
+        disk.add_code_bytes(special_data, filename='special2')
+        disk.files[1].type = FileType.SPECIAL
+        disk.files[1].sector_map.setall(0)
+        disk.files[1].sector_map[5:15] = 1
+        self.assertRaises(RuntimeError, Disk.validate, disk)
 
     def test_bootable_empty(self):
         disk = Disk()
