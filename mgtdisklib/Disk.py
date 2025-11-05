@@ -25,10 +25,11 @@ class DiskType(Enum):
 
 
 class Disk:
-    __slots__ = ('type', 'dir_tracks', 'label', 'serial', 'files', 'compressed')
+    __slots__ = ('type', 'path', 'dir_tracks', 'label', 'serial', 'files', 'compressed')
 
     def __init__(self) -> None:
         self.type: DiskType = DiskType.SAMDOS
+        self.path: Optional[str] = None
         self.dir_tracks: int = 4
         self.label: Optional[str] = None
         self.serial: Optional[int] = None
@@ -67,6 +68,7 @@ class Disk:
     def from_image(image: Image) -> 'Disk':
         """Construct a Disk object from a disk image"""
         disk = Disk()
+        disk.path = image.path
         disk.compressed = image.compressed
         label_raw: Optional[bytes] = None
 
@@ -111,8 +113,12 @@ class Disk:
         """Number of usable file data bytes"""
         return max(0, self.free_sectors() * File.data_bytes_per_sector(type) - File.type_header_size(type))
 
-    def save(self, path: str, *, compressed: bool = False) -> None:
+    def save(self, path: Optional[str] = None, *, compressed: bool = False) -> None:
         """Save disk content to disk image"""
+        path = path or self.path
+        if not path:
+            raise ValueError('save path is required')
+
         image = self.to_image()
         image.save(path, compressed=compressed)
 
@@ -158,6 +164,7 @@ class Disk:
         self.validate()
 
         image = MGTImage()
+        image.path = self.path
         timefmt = TimeFormat.BDOS if self.type is DiskType.BDOS else TimeFormat.MASTERDOS
 
         reserved_map = reserved_map or bitarray(1600, endian='little')

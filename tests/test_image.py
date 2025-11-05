@@ -68,6 +68,7 @@ class ImageTests(unittest.TestCase):
     def test_open_mgt_zip_image(self):
         image = Image.open(f'{TESTDIR}/image.mgt.zip')
         self.assertIsInstance(image, MGTImage)
+        self.assertEqual(image.path, os.path.abspath(f'{TESTDIR}/image.mgt.zip'))
         self.assertFalse(image.compressed)
         self.assertEqual(len(image.data), 819200)
 
@@ -89,12 +90,17 @@ class ImageTests(unittest.TestCase):
     def test_open_invalid_image(self):
         self.assertRaises(RuntimeError, Image.open, f'{TESTDIR}/samdos2')
 
+    def test_save_no_path(self):
+        image = Image()
+        self.assertRaises(ValueError, image.save)
+
     def test_save_mgt_image(self):
         image = Image()
         with make_temp_file('.mgt') as temp_path:
             image.save(temp_path)
             self.assertEqual(os.path.getsize(temp_path), 819200)
             image = Image.open(temp_path)
+            image.save()
         self.assertFalse(image.compressed)
 
     def test_save_mgt_gzip_image(self):

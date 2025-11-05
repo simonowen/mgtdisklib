@@ -13,6 +13,7 @@ class DiskTests(unittest.TestCase):
     def test_construct(self):
         disk = Disk()
         self.assertEqual(disk.type, DiskType.SAMDOS)
+        self.assertIsNone(disk.path)
         self.assertEqual(disk.dir_tracks, 4)
         self.assertEqual(disk.files, [])
         self.assertFalse(disk.compressed)
@@ -22,6 +23,7 @@ class DiskTests(unittest.TestCase):
     def test_open(self):
         disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
         self.assertIsNotNone(disk)
+        self.assertEqual(disk.path, os.path.abspath(f'{TESTDIR}/samdos2.mgt.gz'))
 
     def test_open_masterdos_label(self):
         disk = Disk.open(f'{TESTDIR}/masterdos_label.mgt.gz')
@@ -48,6 +50,7 @@ class DiskTests(unittest.TestCase):
         disk = Disk.from_image(image)
         disk2 = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
 
+        self.assertEqual(disk.path, os.path.abspath(f'{TESTDIR}/samdos2.mgt.gz'))
         self.assertEqual(disk.type, disk2.type)
         self.assertEqual(disk.dir_tracks, disk2.dir_tracks)
         self.assertEqual(disk.label, disk2.label)
@@ -63,6 +66,10 @@ class DiskTests(unittest.TestCase):
             image = Image.open(temp_path)
             self.assertEqual(os.path.getsize(temp_path), 819200)
             self.assertEqual(len(image.data), 819200)
+
+    def test_save_no_path(self):
+        disk = Disk()
+        self.assertRaises(ValueError, disk.save)
 
     def test_to_image_empty(self):
         disk = Disk()

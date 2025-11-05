@@ -68,8 +68,13 @@ class Image:
         image.compressed = compressed
         return image
 
-    def save(self, path: str, *, compressed: bool = False) -> None:
+    def save(self, path: Optional[str] = None, *, compressed: bool = False) -> None:
         """Save disk data to image file"""
+        path = path or self.path
+        if not path:
+            raise ValueError('save path is required')
+        self.path = os.path.abspath(path)
+
         if compressed:
             with gzip.open(path, 'wb') as f:
                 f.write(self.data)
