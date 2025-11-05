@@ -437,7 +437,7 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(len(disk.files), 2)
         disk.add_code_file(f'{TESTDIR}/samdos2', filename='three')
         self.assertEqual(len(disk.files), 3)
-        self.assertEqual(disk.delete('T*'), 2)
+        self.assertEqual(disk.delete('T*'), ['two', 'three'])
         self.assertEqual(len(disk.files), 1)
 
     def test_sector_map(self):

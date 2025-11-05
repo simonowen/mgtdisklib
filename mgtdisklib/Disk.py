@@ -221,11 +221,11 @@ class Disk:
         """Find files matching filename pattern"""
         return [file for file in self.files if fnmatch.fnmatch(file.name.lower(), pattern.lower())]
 
-    def delete(self, pattern: str) -> int:
+    def delete(self, pattern: str) -> List[str]:
         """Delete files matching filename pattern"""
-        files = len(self.files)
-        self.files = [file for file in self.files if not fnmatch.fnmatch(file.name.lower(), pattern.lower())]
-        return files - len(self.files)
+        filenames = [file.name for file in self.find(pattern)]
+        self.files = [file for file in self.files if file.name not in filenames]
+        return filenames
 
     def dir(self) -> str:
         """Generate directory listing"""
