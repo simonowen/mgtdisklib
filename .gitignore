@@ -8,6 +8,10 @@ wheels/
 
 # Test files
 .coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+.ruff_cache/
 
 # Virtual environments
 /.venv

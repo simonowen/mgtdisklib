@@ -88,7 +88,7 @@ class Image:
         offset = self.sector_offset(track, sector)
         return bytes(self.data[offset:offset+512])
 
-    def write_sector(self, track: int, sector: int, data: bytes) -> None:
+    def write_sector(self, track: int, sector: int, data: bytes | bytearray) -> None:
         """Write sector data to given sector location"""
 
         if len(data) != 512:
