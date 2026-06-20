@@ -14,26 +14,24 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
 
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v7
+
     - name: Install dependencies
-      run: |
-        python3 -m pip install --upgrade pip
-        python3 -m pip install .[dev]
+      run: uv sync --group dev
 
     - name: Test with pytest
-      run: |
-        python3 -m pytest -ra -q --cov=mgtdisklib --cov-report=term-missing --cov-fail-under=100
+      run: uv run pytest -ra -q --cov=mgtdisklib --cov-report=term-missing --cov-fail-under=100
 
-    - name: Lint with mypy
-      run: |
-        python3 -m mypy --version
-        python3 -m mypy --python-version "${{ matrix.python-version }}" mgtdisklib
+    - name: Lint with ty
+      run: uvx ty check mgtdisklib

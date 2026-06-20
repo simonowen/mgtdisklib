@@ -15,7 +15,6 @@ htmlcov/
 
 # Virtual environments
 /.venv
-/uv.lock
 
 # IDE
 .vscode/*
