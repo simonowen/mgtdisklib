@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mgtdisklib"
-version = "0.5.3"
+version = "0.6.0"
 description = "Disk manipulation for SAM Coupé and MGT +D disks images"
 readme = "ReadMe.md"
 license = "MIT"
