@@ -58,13 +58,13 @@ class Disk:
         return dir_map
 
     @staticmethod
-    def open(path: str) -> 'Disk':
+    def open(path: str, *, full_dir: bool = False) -> 'Disk':
         """Load disk from disk image file"""
         image = Image.open(path)
-        return Disk.from_image(image)
+        return Disk.from_image(image, full_dir=full_dir)
 
     @staticmethod
-    def from_image(image: Image) -> 'Disk':
+    def from_image(image: Image, *, full_dir: bool = False) -> 'Disk':
         """Construct a Disk object from a disk image"""
         disk = Disk()
         disk.path = image.path
@@ -92,7 +92,7 @@ class Disk:
             if file.type:
                 Disk.read_data(image, file)
                 disk.files.append(file)
-            elif not file.name_raw[1]:
+            elif not full_dir and file.name_raw.startswith(b'\0'):
                 break
 
         return disk

@@ -60,9 +60,9 @@ DiskType.BDOS           # BDOS, used by Atom and Atom Lite.
 ### Disk Class Functions
 
 ```python
-    def open(path: str) -> Disk:
+    def open(path: str, *, full_dir: bool = False) -> Disk:
         """Load disk from disk image file"""
-    def from_image(image: Image) -> Disk:
+    def from_image(image: Image, *, full_dir: bool = False) -> Disk:
         """Construct a Disk object from a disk image"""
 ```
 

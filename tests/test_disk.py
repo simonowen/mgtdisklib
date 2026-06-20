@@ -59,8 +59,17 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(len(disk.files), len(disk2.files))
         self.assertEqual(disk.files[0].data, disk2.files[0].data)
 
+    def test_from_image_full_dir(self):
+        image = Image.open(f'{TESTDIR}/manic.mgt.gz')
+        disk = Disk.from_image(image)
+        self.assertEqual(len(disk.files), 1)
+        disk = Disk.from_image(image, full_dir=False)
+        self.assertEqual(len(disk.files), 1)
+        disk = Disk.from_image(image, full_dir=True)
+        self.assertEqual(len(disk.files), 2)
+
     def test_save(self):
-        disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')
+        disk = Disk.open(f'{TESTDIR}/samdos2.mgt.gz')  # DOS+blank+AUTO files
         with make_temp_file('.mgt') as temp_path:
             disk.save(temp_path)
             image = Image.open(temp_path)
