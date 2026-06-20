@@ -1,8 +1,8 @@
 # mgtdisklib
 
-A Python library to give file-level access to the contents of SAM Coupé and MGT +D disk images.
+A Python library to access to the contents of SAM Coupé and MGT +D disk images.
 
-NOTE: the library is currently a work in progress and the API is still subject to change.
+NOTE: the libary API may not be completely stable before version 1.0.
 
 Homepage: <https://github.com/simonowen/mgtdisklib>  
 Module: <https://pypi.org/project/mgtdisklib/>
@@ -16,7 +16,7 @@ Module: <https://pypi.org/project/mgtdisklib/>
 ### Installing the module
 
 ```shell
-pip -m install mgtdisklib
+python -m pip install mgtdisklib
 ```
 
 ### Importing the module
@@ -31,7 +31,9 @@ from mgtdisklib import Disk, Image, File
 disk = Disk.open('image.mgt')
 ```
 
-MGT/SAD/EDSK container files are supported, but only those containing a regular 80/2/10/512 or 80/2/9/512 format. The image file may be optionally compressed with gzip.
+MGT/SAD/EDSK container files are supported, but only those containing a regular
+80/2/10/512 or 80/2/9/512 format. The image file may be optionally compressed
+with gzip.
 
 ### Saving the Disk contents to a new MGT image file
 
@@ -75,23 +77,22 @@ DiskType.BDOS           # BDOS, used by Atom and Atom Lite.
         """Add CODE file from path"""
     def add_code_bytes(self, data: bytes, *, filename: str, at_index: Optional[int] = None) -> None:
         """Add CODE file from bytes"""
-    def delete(self, pattern: str) -> int:
-        """Delete files matching filename pattern"""
-    def bam(self) -> bitarray:
-        """Combined Bitmap Address Map for all files"""
+    def delete(self, pattern: str) -> List[str]:
+        """Delete files matching filename pattern, returns list of deleted names"""
     def dir(self) -> str:
         """Return directory listing"""
 ```
 
-### Disk Instance Variables
+### Disk Instance Properties
 
 - `type` - disk type (DiskType)
 - `files` - array of `File` objects in directory order (File[])
 - `dir_tracks` - number of directory tracks (usually 4) (int)
 - `label` - disk volume label string (Optional[str])
-- `serial` - MasterDOS unique disk number (Optional[int]).
+- `serial` - MasterDOS unique disk number (Optional[int])
 - `compressed` - _True_ if the source disk or image was gzipped (bool)
-- `bootable` - _True_ if the disk is bootable (bool)
+- `bootable` - _True_ if the disk is bootable (bool) [read-only]
+- `sector_map` - combined Bitmap Address Map for all files (bitarray) [read-only]
 
 ----
 
@@ -150,8 +151,8 @@ TimeFormat.BDOS17       # Packed format for used by BDOS 1.7 or later.
         """Create CODE file from path"""
     def from_code_bytes(data: bytes, filename: str, *, start: int = 0x8000, execute: int = None) -> File:
         """Create CODE file from bytes"""
-    def from_dir(data: bytes) -> Tuple[File, int]:
-        """Create from 256-byte directory entry data, returns data length"""
+    def from_dir(data: bytes) -> File:
+        """Create from 256-byte directory entry data"""
     def from_path(path: str) -> File:
         """Import file entry exported using save()"""
 ```
@@ -161,33 +162,31 @@ TimeFormat.BDOS17       # Packed format for used by BDOS 1.7 or later.
 ```python
     def save(self, path: str) -> None:
         """Export directory entry and file content for later"""
-    def to_dir(self, start_track: int = 4, start_sector: int = 1, *, timefmt: TimeFormat = TimeFormat.MASTERDOS) -> bytes:
-        """Create directory entry from current file data"""
+    def to_dir(self, disk_map: Optional[bitarray] = None, timefmt: TimeFormat = TimeFormat.MASTERDOS) -> Tuple[bytes, bitarray]:
+        """Create directory entry, allocate sectors, return (entry, updated disk_map)"""
 ```
 
-### File Instance Variables
+### File Instance Properties
 
 - `type` - file type (FileType)
 - `hidden` - _True_ if file is hidden from SAM directory listing (bool)
-- `protected` - _True_ is file is protected from deletion (bool)
+- `protected` - _True_ if file is protected from deletion (bool)
 - `name` - file name in ASCII without trailing spaces (str)
 - `name_raw` - original 10-byte name, which could contain special characters (bytes)
-- `sectors` - count of data sectors used (from sector bitmap) (int)
-- `start_track` - first track of file data [read-only] (Optional[int])
-- `start_sector` - first sector of file data [read-only] (Optional[int])
-- `sector_map` - bitmap of sectors used by this file (starting track 4 sector 1) [read-only] (bitarray)
+- `sectors` - count of data sectors used (int) [read-only]
+- `first_sector` - first data (track, sector) tuple (Optional[Tuple[int, int]]) [read-only]
+- `sector_map` - bitmap of sectors used by this file, starting at track 4 sector 1 (bitarray) [read-only]
 - `start` - file start address (Optional[int])
-- `length` - file length (Optional[int])
+- `length` - file length in bytes (int) [read-only]
 - `execute` - auto-execute line (BASIC) or address (CODE) (Optional[int])
 - `time` - file date+time (Optional[datetime])
-- `data_var` - variable name for numeric/string DATA types [read-only] (Optional[str])
+- `data_var` - variable name for numeric/string DATA types (Optional[str])
 - `entry` - original 256-byte directory entry (bytes)
-- `bootable` - _True_ if bootable in the first directory slot (bool)
+- `bootable` - _True_ if bootable in the first directory slot (bool) [read-only]
 - `data` - file data (bytes)
 
-Some properties are read-only, reflecting the state as read from disk. Some of
-them (including `start_track`, `start_sector` and `sector_map`) will be updated
-as needed when a disk image is created containing them.
+Properties marked [read-only] are derived from the file data. `first_sector` and
+`sector_map` are updated when a disk image is created containing the file.
 
 ----
 
@@ -229,7 +228,7 @@ MasterDOS disks can be formatted to use up to 39 directory tracks, allowing up
 to 778 files to be stored. This is 2 less than expected because the boot sector
 remains in the same place for all disks.
 
-### Image Instance Variables
+### Image Instance Properties
 
 - `path` - full path of the disk image (Optional[str])
 - `compressed` - _True_ if the source image was gzipped (bool)
