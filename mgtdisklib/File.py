@@ -10,7 +10,6 @@ import struct
 from collections import deque
 from datetime import datetime
 from enum import Enum, IntEnum
-from typing import List, Optional, Tuple
 
 from bitarray import bitarray
 
@@ -111,23 +110,23 @@ class File:
         self.protected: bool = False
         self.name_raw: bytes = bytes()
         self.name: str = ''
-        self._first_sector: Optional[Tuple[int, int]] = None
+        self._first_sector: tuple[int, int] | None = None
         self.sector_map: bitarray = File.empty_sector_map()
-        self._sectors: Optional[int] = None
-        self.start: Optional[int] = None
-        self._length: Optional[int] = None
-        self.execute: Optional[int] = None
-        self.basic_offsets: Optional[List[int]] = None
-        self.time: Optional[datetime] = None
-        self.dir: Optional[int] = None
-        self.driver_pos: Optional[bytes] = None
-        self.data_var: Optional[str] = None
-        self.screen_mode: Optional[int] = None
-        self._save_mode: Optional[int] = None  # as read
-        self.merge_protect: Optional[bool] = None
+        self._sectors: int | None = None
+        self.start: int | None = None
+        self._length: int | None = None
+        self.execute: int | None = None
+        self.basic_offsets: list[int] | None = None
+        self.time: datetime | None = None
+        self.dir: int | None = None
+        self.driver_pos: bytes | None = None
+        self.data_var: str | None = None
+        self.screen_mode: int | None = None
+        self._save_mode: int | None = None  # as read
+        self.merge_protect: bool | None = None
         self.header = bytes()
         self.data = bytes()
-        self._data: Optional[bytes] = None  # compressed data, as read
+        self._data: bytes | None = None  # compressed data, as read
 
     def __str__(self) -> str:
         """String representation of File, like directory text"""
@@ -164,14 +163,14 @@ class File:
         return str
 
     @property
-    def first_sector(self) -> Optional[Tuple[int, int]]:
+    def first_sector(self) -> tuple[int, int] | None:
         """Tuple of first data track (1-80) and sector (1-10)"""
         index = self.sector_map.find(1)
         return File.index_to_sector(index) if index >= 0 else None
 
     @staticmethod
-    def from_code_path(path: str, *, filename: Optional[str] = None, start: int = 0x8000,
-                       execute: Optional[int] = None) -> 'File':
+    def from_code_path(path: str, *, filename: str | None = None, start: int = 0x8000,
+                       execute: int | None = None) -> 'File':
         """Create CODE file from path"""
 
         with open(path, 'rb') as f:
@@ -182,7 +181,7 @@ class File:
 
     @staticmethod
     def from_code_bytes(data: bytes, filename: str, *, start: int = 0x8000,
-                        execute: Optional[int] = None) -> 'File':
+                        execute: int | None = None) -> 'File':
         """Create CODE file from bytes"""
 
         file = File.from_dir(bytes(256))
@@ -348,7 +347,7 @@ class File:
             f.write(self.entry)
             f.write(self.data)
 
-    def allocate(self, disk_map: Optional[bitarray] = None) -> bitarray:
+    def allocate(self, disk_map: bitarray | None = None) -> bitarray:
         """Allocate data sectors, updating start track/sector and map"""
         disk_map = disk_map or File.empty_sector_map()
         sector_map = File.empty_sector_map()
@@ -363,9 +362,9 @@ class File:
         return disk_map
 
     def validate(self) -> None:
-        exact_data_len: Optional[int] = None
-        max_data_len: Optional[int] = None
-        expected: List[str] = []
+        exact_data_len: int | None = None
+        max_data_len: int | None = None
+        expected: list[str] = []
 
         if self.type == FileType.NONE:
             raise ValueError('file type is NONE')
@@ -490,8 +489,8 @@ class File:
         elif max_data_len and self.length > max_data_len:
             raise ValueError(f'{self.name}: length {self.length} exceeds max {max_data_len} for {self.type.name}')
 
-    def to_dir(self, disk_map: Optional[bitarray] = None,
-               timefmt: TimeFormat = TimeFormat.MASTERDOS) -> Tuple[bytes, bitarray]:
+    def to_dir(self, disk_map: bitarray | None = None,
+               timefmt: TimeFormat = TimeFormat.MASTERDOS) -> tuple[bytes, bitarray]:
         """Create directory entry for file, return updated sector map"""
         self.validate()
 
@@ -745,7 +744,7 @@ class File:
         return bitarray((80 * 2 - 4) * 10, endian='little')
 
     @staticmethod
-    def index_to_sector(index: int) -> Tuple[int, int]:
+    def index_to_sector(index: int) -> tuple[int, int]:
         """Convert sector map index to track and sector"""
         if index < 0 or index >= 1560:
             raise ValueError('sector index {index} out of range (0-1559)')
@@ -757,12 +756,12 @@ class File:
         return track, sector
 
     @staticmethod
-    def sector_list(sector_map: bitarray) -> List[Tuple[int, int]]:
+    def sector_list(sector_map: bitarray) -> list[tuple[int, int]]:
         """Returns list of (track, sector) tuples for a sector map"""
         return [File.index_to_sector(i) for i in sector_map.search(bitarray('1'))]
 
     @staticmethod
-    def contig_sector_map(sectors: int, start_pos: Tuple[int, int] = (4, 1),
+    def contig_sector_map(sectors: int, start_pos: tuple[int, int] = (4, 1),
                           *, dir_tracks: int = 4) -> bitarray:
         """Generate sector map of contiguous sectors from a given position"""
         start_track, start_sector = start_pos
@@ -791,7 +790,7 @@ class File:
         return sector_map
 
     @staticmethod
-    def pack_time(time: Optional[datetime], format: TimeFormat = TimeFormat.MASTERDOS) -> bytes:
+    def pack_time(time: datetime | None, format: TimeFormat = TimeFormat.MASTERDOS) -> bytes:
         """Pack given date/time into 5 bytes"""
         if time is None:
             return b'\x00\x00\x00\x00\x00'
@@ -805,7 +804,7 @@ class File:
         return bytes(data)
 
     @staticmethod
-    def unpack_time(data: bytes) -> Optional[datetime]:
+    def unpack_time(data: bytes) -> datetime | None:
         """Unpack 5-byte date/time into datetime"""
 
         if data[0] == 0xff:
@@ -837,17 +836,17 @@ class File:
         return int(struct.unpack('>H', data)[0])
 
     @staticmethod
-    def word_to_le(val: Optional[int]) -> bytes:
+    def word_to_le(val: int | None) -> bytes:
         """Pack unsigned 16-bit value to 2 bytes (little endian)"""
         return struct.pack('<H', 0 if val is None else (val & 0xffff))
 
     @staticmethod
-    def word_to_be(val: Optional[int]) -> bytes:
+    def word_to_be(val: int | None) -> bytes:
         """Pack unsigned 16-bit value to 2 bytes (big endian)"""
         return struct.pack('>H', 0 if val is None else (val & 0xffff))
 
     @staticmethod
-    def unpack_triple(data: bytes) -> Tuple[int, int]:
+    def unpack_triple(data: bytes) -> tuple[int, int]:
         """Unpack 3-byte MGT value to 5-bit and 15-bit components"""
         return data[0] & 0x1f, (data[2] & 0x7f) * 256 + data[1]
 
@@ -864,18 +863,18 @@ class File:
         return pages * 16384 + remain
 
     @staticmethod
-    def triple_to_exec(data: bytes) -> Optional[int]:
+    def triple_to_exec(data: bytes) -> int | None:
         """Convert 3-byte value to execute address"""
         page, offset = File.unpack_triple(data)
         return None if data[0] == 0xff else page * 16384 + offset
 
     @staticmethod
-    def triple_to_line(data: bytes) -> Optional[int]:
+    def triple_to_line(data: bytes) -> int | None:
         """Convert 3-byte value BASIC auto-start line number"""
         return None if data[0] == 0xff else (data[2] * 256 + data[1])
 
     @staticmethod
-    def addr_to_triple(addr: Optional[int]) -> bytes:
+    def addr_to_triple(addr: int | None) -> bytes:
         """Convert start address to 3-byte value"""
         if addr is None:
             return b'\x00\x00\x00'
@@ -883,7 +882,7 @@ class File:
         return struct.pack('<BH', page, addr)
 
     @staticmethod
-    def len_to_triple(len: Optional[int]) -> bytes:
+    def len_to_triple(len: int | None) -> bytes:
         """Convert length to 3-byte page/offset value"""
         if len is None:
             return b'\x00\x00\x00'
@@ -891,7 +890,7 @@ class File:
         return struct.pack('<BH', pages, remain)
 
     @staticmethod
-    def exec_to_triple(exec: Optional[int]) -> bytes:
+    def exec_to_triple(exec: int | None) -> bytes:
         """Convert execute address to 3-byte value"""
         if exec is None:
             return b'\xff\xff\xff'
@@ -899,7 +898,7 @@ class File:
         return struct.pack('<BH', page, offset)
 
     @staticmethod
-    def line_to_triple(line: Optional[int]) -> bytes:
+    def line_to_triple(line: int | None) -> bytes:
         """Convert auto-start line number to 3-byte value"""
         if line is None or line < 0 or line >= 0xff00:
             return b'\xff\xff\xff'

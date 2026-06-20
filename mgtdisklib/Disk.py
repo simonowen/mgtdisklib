@@ -10,7 +10,6 @@ import random
 import struct
 from enum import Enum
 from functools import reduce
-from typing import List, Optional, Tuple
 
 from bitarray import bitarray
 
@@ -29,11 +28,11 @@ class Disk:
 
     def __init__(self) -> None:
         self.type: DiskType = DiskType.SAMDOS
-        self.path: Optional[str] = None
+        self.path: str | None = None
         self.dir_tracks: int = 4
-        self.label: Optional[str] = None
-        self.serial: Optional[int] = None
-        self.files: List[File] = []
+        self.label: str | None = None
+        self.serial: int | None = None
+        self.files: list[File] = []
         self.compressed: bool = False
 
     def __str__(self) -> str:
@@ -70,7 +69,7 @@ class Disk:
         disk = Disk()
         disk.path = image.path
         disk.compressed = image.compressed
-        label_raw: Optional[bytes] = None
+        label_raw: bytes | None = None
 
         entry0 = image.read_sector(0, 1)
         if entry0[232:232+4] == bytes('BDOS', 'ascii'):
@@ -113,7 +112,7 @@ class Disk:
         """Number of usable file data bytes"""
         return max(0, self.free_sectors() * File.data_bytes_per_sector(type) - File.type_header_size(type))
 
-    def save(self, path: Optional[str] = None, *, compressed: bool = False) -> None:
+    def save(self, path: str | None = None, *, compressed: bool = False) -> None:
         """Save disk content to disk image"""
         path = path or self.path
         if not path:
@@ -159,7 +158,7 @@ class Disk:
             if special_map.count() != special_count:
                 raise RuntimeError('SPECIAL file sector maps overlap')
 
-    def to_image(self, *, reserved_map: Optional[bitarray] = None) -> Image:
+    def to_image(self, *, reserved_map: bitarray | None = None) -> Image:
         """Generate MGT disk image from current contents"""
         self.validate()
 
@@ -210,25 +209,25 @@ class Disk:
 
         return image
 
-    def add_code_file(self, path: str, *, filename: Optional[str] = None, start: int = 0x8000,
-                       execute: Optional[int] = None, at_index: Optional[int] = None) -> None:
+    def add_code_file(self, path: str, *, filename: str | None = None, start: int = 0x8000,
+                       execute: int | None = None, at_index: int | None = None) -> None:
         """Add CODE file from path"""
         file = File.from_code_path(path, filename=filename, start=start, execute=execute)
         self.delete(file.name)
         self.files.insert(len(self.files) if at_index is None else at_index, file)
 
     def add_code_bytes(self, data: bytes, *, filename: str, start: int = 0x8000,
-                       execute: Optional[int] = None, at_index: Optional[int] = None) -> None:
+                       execute: int | None = None, at_index: int | None = None) -> None:
         """Add CODE file from bytes"""
         file = File.from_code_bytes(data, filename=filename, start=start, execute=execute)
         self.delete(file.name)
         self.files.insert(len(self.files) if at_index is None else at_index, file)
 
-    def find(self, pattern: str) -> List[File]:
+    def find(self, pattern: str) -> list[File]:
         """Find files matching filename pattern"""
         return [file for file in self.files if fnmatch.fnmatch(file.name.lower(), pattern.lower())]
 
-    def delete(self, pattern: str) -> List[str]:
+    def delete(self, pattern: str) -> list[str]:
         """Delete files matching filename pattern"""
         filenames = [file.name for file in self.find(pattern)]
         self.files = [file for file in self.files if file.name not in filenames]
@@ -259,7 +258,7 @@ class Disk:
         return (dir_tracks * 10 * 2) - reserved_slots
 
     @staticmethod
-    def dir_position(index: int) -> Tuple[int, int, int]:
+    def dir_position(index: int) -> tuple[int, int, int]:
         """Calculate offset in image for zero-based directory entry"""
         if index >= (4 * 10 * 2):
             index += 2  # skip track 4 sector 1

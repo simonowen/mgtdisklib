@@ -73,11 +73,11 @@ DiskType.BDOS           # BDOS, used by Atom and Atom Lite.
         """Save disk content to disk image"""
     def to_image(self) -> Image:
         """Generate MGT disk image from current contents"""
-    def add_code_file(self, path: str, *, filename: Optional[str] = None, at_index: Optional[int] = None) -> None:
+    def add_code_file(self, path: str, *, filename: str | None = None, at_index: int | None = None) -> None:
         """Add CODE file from path"""
-    def add_code_bytes(self, data: bytes, *, filename: str, at_index: Optional[int] = None) -> None:
+    def add_code_bytes(self, data: bytes, *, filename: str, at_index: int | None = None) -> None:
         """Add CODE file from bytes"""
-    def delete(self, pattern: str) -> List[str]:
+    def delete(self, pattern: str) -> list[str]:
         """Delete files matching filename pattern, returns list of deleted names"""
     def dir(self) -> str:
         """Return directory listing"""
@@ -88,8 +88,8 @@ DiskType.BDOS           # BDOS, used by Atom and Atom Lite.
 - `type` - disk type (DiskType)
 - `files` - array of `File` objects in directory order (File[])
 - `dir_tracks` - number of directory tracks (usually 4) (int)
-- `label` - disk volume label string (Optional[str])
-- `serial` - MasterDOS unique disk number (Optional[int])
+- `label` - disk volume label string (str | None)
+- `serial` - MasterDOS unique disk number (int | None)
 - `compressed` - _True_ if the source disk or image was gzipped (bool)
 - `bootable` - _True_ if the disk is bootable (bool) [read-only]
 - `sector_map` - combined Bitmap Address Map for all files (bitarray) [read-only]
@@ -162,7 +162,7 @@ TimeFormat.BDOS17       # Packed format for used by BDOS 1.7 or later.
 ```python
     def save(self, path: str) -> None:
         """Export directory entry and file content for later"""
-    def to_dir(self, disk_map: Optional[bitarray] = None, timefmt: TimeFormat = TimeFormat.MASTERDOS) -> Tuple[bytes, bitarray]:
+    def to_dir(self, disk_map: bitarray | None = None, timefmt: TimeFormat = TimeFormat.MASTERDOS) -> tuple[bytes, bitarray]:
         """Create directory entry, allocate sectors, return (entry, updated disk_map)"""
 ```
 
@@ -174,13 +174,13 @@ TimeFormat.BDOS17       # Packed format for used by BDOS 1.7 or later.
 - `name` - file name in ASCII without trailing spaces (str)
 - `name_raw` - original 10-byte name, which could contain special characters (bytes)
 - `sectors` - count of data sectors used (int) [read-only]
-- `first_sector` - first data (track, sector) tuple (Optional[Tuple[int, int]]) [read-only]
+- `first_sector` - first data (track, sector) tuple (tuple[int, int] | None) [read-only]
 - `sector_map` - bitmap of sectors used by this file, starting at track 4 sector 1 (bitarray) [read-only]
-- `start` - file start address (Optional[int])
+- `start` - file start address (int | None)
 - `length` - file length in bytes (int) [read-only]
-- `execute` - auto-execute line (BASIC) or address (CODE) (Optional[int])
-- `time` - file date+time (Optional[datetime])
-- `data_var` - variable name for numeric/string DATA types (Optional[str])
+- `execute` - auto-execute line (BASIC) or address (CODE) (int | None)
+- `time` - file date+time (datetime | None)
+- `data_var` - variable name for numeric/string DATA types (str | None)
 - `entry` - original 256-byte directory entry (bytes)
 - `bootable` - _True_ if bootable in the first directory slot (bool) [read-only]
 - `data` - file data (bytes)
@@ -230,7 +230,7 @@ remains in the same place for all disks.
 
 ### Image Instance Properties
 
-- `path` - full path of the disk image (Optional[str])
+- `path` - full path of the disk image (str | None)
 - `compressed` - _True_ if the source image was gzipped (bool)
 - `data` - raw disk data from image file (bytearray)
 

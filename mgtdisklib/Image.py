@@ -8,14 +8,13 @@ import gzip
 import io
 import os
 import zipfile
-from typing import Optional
 
 
 class Image:
     __slots__ = ('path', 'compressed', 'data')
 
     def __init__(self) -> None:
-        self.path: Optional[str] = None
+        self.path: str | None = None
         self.compressed: bool = False
         self.data: bytearray = bytearray(80 * 2 * 10 * 512)
 
@@ -51,7 +50,7 @@ class Image:
                 data = gf.read()
                 compressed = True
 
-        image: Optional[Image] = None
+        image: Image | None = None
         if Image.is_img_image(data):
             image = IMGImage()
         elif len(data) == 819200:
@@ -68,7 +67,7 @@ class Image:
         image.compressed = compressed
         return image
 
-    def save(self, path: Optional[str] = None, *, compressed: bool = False) -> None:
+    def save(self, path: str | None = None, *, compressed: bool = False) -> None:
         """Save disk data to image file"""
         path = path or self.path
         if not path:
