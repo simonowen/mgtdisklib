@@ -101,7 +101,7 @@ class File:
     __slots__ = ('entry', 'type', '_dir_slot', 'hidden', 'protected', 'name_raw', 'name', '_first_sector',
                  'sector_map', '_sectors', 'start', '_length', 'execute', 'basic_offsets',
                  'time', 'dir', 'driver_pos', 'data_var', 'screen_mode', '_save_mode',
-                 'merge_protect', 'header', 'data', '_data')
+                 'merge_protect', 'header', 'data', '_data', '_chain_data', '_map_data')
 
     def __init__(self) -> None:
         self.entry: bytes = bytes(256)
@@ -128,6 +128,8 @@ class File:
         self.header = bytes()
         self.data = bytes()
         self._data: bytes | None = None  # compressed data, as read
+        self._chain_data = bytes()  # sector chain data
+        self._map_data = bytes()  # sector map data
 
     def __str__(self) -> str:
         """String representation of File, like directory text"""
@@ -644,6 +646,11 @@ class File:
     def is_sam_file_type(type: FileType) -> bool:
         """Return whether the given type is a SAM file type"""
         return type >= FileType.BASIC
+
+    @staticmethod
+    def is_sector_data_type(type: FileType) -> bool:
+        """Return whether file type has stored sector data"""
+        return type is not FileType.DIR
 
     @staticmethod
     def is_contig_data_type(type: FileType) -> bool:

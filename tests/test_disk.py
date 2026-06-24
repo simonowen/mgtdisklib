@@ -540,8 +540,7 @@ class DiskTests(unittest.TestCase):
         image = Image.open(f'{TESTDIR}/samdos2.mgt.gz')
         file = Disk.from_image(image).files[0]
         header, data = file.header, file.data
-        data_ret = Disk.read_data(image, file)
-        self.assertEqual(file.data, data_ret)
+        Disk.read_data(image, file)
         self.assertEqual(file.header, header)
         self.assertEqual(file.data, data)
         self.assertEqual(len(file.data), 10000)
@@ -550,10 +549,53 @@ class DiskTests(unittest.TestCase):
         image = Image.open(f'{TESTDIR}/emptycpm.mgt.gz')
         file = Disk.from_image(image).files[0]
         self.assertEqual(file.sectors, 80*2*9)
-        data_ret = Disk.read_data(image, file)
-        self.assertEqual(file.data, data_ret)
+        Disk.read_data(image, file)
         self.assertEqual(file.header, b'')
         self.assertEqual(file.data, bytes(b'\xe5' * 80*2*9*512))
+
+    def test_read_data_chain_short(self):
+        image = Image.open(f'{TESTDIR}/chain_short.mgt.gz')
+        file = Disk.from_image(image).files[0]
+        Disk.read_data(image, file)
+        self.assertEqual(file.length, 24617)
+        self.assertEqual(file._length, file.length)
+        self.assertEqual(len(file._chain_data), 5100)
+        self.assertEqual(len(file._map_data), 24990)
+        header_size = File.type_header_size(file.type)
+        self.assertEqual(file.data, file._map_data[header_size:header_size+file.length])
+
+    def test_read_data_chain_bad(self):
+        image = Image.open(f'{TESTDIR}/chain_bad.mgt.gz')
+        file = Disk.from_image(image).files[0]
+        Disk.read_data(image, file)
+        self.assertEqual(file.length, 24617)
+        self.assertEqual(file._length, file.length)
+        self.assertEqual(len(file._chain_data), 5100)
+        self.assertEqual(len(file._map_data), 24990)
+        header_size = File.type_header_size(file.type)
+        self.assertEqual(file.data, file._map_data[header_size:header_size+file.length])
+
+    def test_read_data_chain_loop(self):
+        image = Image.open(f'{TESTDIR}/chain_loop.mgt.gz')
+        file = Disk.from_image(image).files[0]
+        Disk.read_data(image, file)
+        self.assertEqual(file.length, 24617)
+        self.assertEqual(file._length, file.length)
+        self.assertEqual(len(file._chain_data), 5100)
+        self.assertEqual(len(file._map_data), 24990)
+        header_size = File.type_header_size(file.type)
+        self.assertEqual(file.data, file._map_data[header_size:header_size+file.length])
+
+    def test_read_data_chain_map_short(self):
+        image = Image.open(f'{TESTDIR}/chain_and_map_short.mgt.gz')
+        file = Disk.from_image(image).files[0]
+        Disk.read_data(image, file)
+        self.assertEqual(file.length, 5091)
+        self.assertEqual(file._length, 24617)
+        self.assertEqual(len(file._chain_data), 5100)
+        self.assertEqual(len(file._map_data), 510)
+        header_size = File.type_header_size(file.type)
+        self.assertEqual(file.data, file._chain_data[header_size:header_size+file.length])
 
     def test_read_data_uncompress_fail(self):
         image = Image.open(f'{TESTDIR}/mbasic_compress_screen.mgt.gz')

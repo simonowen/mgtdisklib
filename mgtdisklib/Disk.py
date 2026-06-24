@@ -91,7 +91,8 @@ class Disk:
             file = File.from_dir(entry)
             if file.type:
                 file._dir_slot = i + 1
-                Disk.read_data(image, file)
+                if File.is_sector_data_type(file.type):
+                    Disk.read_data(image, file)
                 disk.files.append(file)
             elif not full_dir and file.name_raw.startswith(b'\0'):
                 break
@@ -290,20 +291,43 @@ class Disk:
         image.write_sector(track, sector, bytes(data))
 
     @staticmethod
-    def read_data(image: Image, file: File) -> bytes:
+    def read_data(image: Image, file: File) -> None:
         """Read file data"""
 
         chunk_size = File.data_bytes_per_sector(file.type)
         header_size = File.type_header_size(file.type)
         length = header_size + (file._length or 0)
 
-        data = b''
+        chain_sectors = File.empty_sector_map()
+        chain_chunks = []
+        if chunk_size == 510 and file._first_sector:
+            track, sector = file._first_sector
+            while track != 0 or sector != 0:
+                cyl, head = track & 0x7f, (track >> 7) & 1
+                index = (cyl + head * 80 - 4) * 10 + (sector - 1)
+                if index < 0 or index >= len(chain_sectors) or chain_sectors[index]:
+                    break
+                chain_sectors[index] = 1
+                try:
+                    chunk = image.read_sector(track, sector)
+                except ValueError:
+                    break
+                chain_chunks.append(chunk[:chunk_size])
+                track, sector = chunk[chunk_size:]
+        file._chain_data = b''.join(chain_chunks)
+
+        map_chunks = []
         for track, sector in File.sector_list(file.sector_map):
             chunk = image.read_sector(track, sector)
-            if chunk_size == 512:
-                data += chunk
-            else:
-                data += chunk[:-2]
+            map_chunks.append(chunk[:chunk_size])
+        file._map_data = b''.join(map_chunks)
+
+        if len(file._chain_data) >= header_size + length:
+            data = file._chain_data
+        elif file._map_data[:len(file._chain_data)] == file._chain_data:
+            data = file._map_data
+        else:
+            data = file._chain_data if len(file._chain_data) > len(file._map_data) else file._map_data
 
         file.header = data[:header_size]
         file.data = data[header_size:length]
@@ -315,8 +339,6 @@ class Disk:
                 file.data, file._data = File.uncompress_mode3(file.data, file.screen_mode), file.data
         except Exception:
             pass
-
-        return file.data
 
     @staticmethod
     def write_data(image: Image, file: File) -> None:
