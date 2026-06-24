@@ -90,6 +90,7 @@ class Disk:
             entry = Disk.read_dir(image, i)
             file = File.from_dir(entry)
             if file.type:
+                file._dir_slot = i + 1
                 Disk.read_data(image, file)
                 disk.files.append(file)
             elif not full_dir and file.name_raw.startswith(b'\0'):

@@ -181,8 +181,9 @@ TimeFormat.BDOS17       # Packed format for used by BDOS 1.7 or later.
 - `execute` - auto-execute line (BASIC) or address (CODE) (int | None)
 - `time` - file date+time (datetime | None)
 - `data_var` - variable name for numeric/string DATA types (str | None)
-- `entry` - original 256-byte directory entry (bytes)
-- `bootable` - _True_ if bootable in the first directory slot (bool) [read-only]
+- `entry` - original raw 256-byte directory entry content (bytes)
+- `bootable` - _True_ if file data contains bootable signature (bool) [read-only]
+- `dir_slot` - 1-based directory slot from source disk, otherwise _None_ (int | None) [read-only]
 - `data` - file data (bytes)
 
 Properties marked [read-only] are derived from the file data. `first_sector` and

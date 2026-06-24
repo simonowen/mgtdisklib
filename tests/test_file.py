@@ -53,6 +53,7 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 0)
         self.assertIsNone(file.start)
         self.assertEqual(file.length, 0)
+        self.assertIsNone(file.dir_slot)
         self.assertIsNone(file.execute)
         self.assertIsNone(file.time)
         self.assertIsNone(file.dir)
@@ -87,6 +88,7 @@ class FileTests(unittest.TestCase):
     def test_bootable_basic(self):
         file = Disk.open(f'{TESTDIR}/zx_basic_auto.mgt.gz').files[0]
         self.assertFalse(file.bootable)
+        self.assertEqual(file.dir_slot, 1)
 
     def test_from_code_path(self):
         file = File.from_code_path(f'{TESTDIR}/samdos2')
@@ -99,6 +101,7 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 20)
         self.assertEqual(file.start, 32768)
         self.assertEqual(file.length, 10000)
+        self.assertIsNone(file.dir_slot)
         self.assertIsNone(file.execute)
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
@@ -134,6 +137,7 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sectors, 20)
         self.assertEqual(file.start, 32768)
         self.assertEqual(file.length, 10000)
+        self.assertIsNone(file.dir_slot)
         self.assertIsNone(file.execute)
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
@@ -182,6 +186,7 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.start, 491529)
         self.assertEqual(file.length, 10000)
+        self.assertIsNone(file.dir_slot)
         self.assertIsNone(file.execute)
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)
@@ -207,6 +212,7 @@ class FileTests(unittest.TestCase):
         self.assertEqual(file.sector_map, File.contig_sector_map(file.sectors))
         self.assertEqual(file.start, 491529)
         self.assertEqual(file.length, 10000)
+        self.assertIsNone(file.dir_slot)
         self.assertIsNone(file.execute)
         self.assertIsNone(file.time)
         self.assertIsNone(file.data_var)

@@ -98,7 +98,7 @@ class TimeFormat(Enum):
 class File:
     HEADER_SIZE = 9
 
-    __slots__ = ('entry', 'type', 'hidden', 'protected', 'name_raw', 'name', '_first_sector',
+    __slots__ = ('entry', 'type', '_dir_slot', 'hidden', 'protected', 'name_raw', 'name', '_first_sector',
                  'sector_map', '_sectors', 'start', '_length', 'execute', 'basic_offsets',
                  'time', 'dir', 'driver_pos', 'data_var', 'screen_mode', '_save_mode',
                  'merge_protect', 'header', 'data', '_data')
@@ -106,6 +106,7 @@ class File:
     def __init__(self) -> None:
         self.entry: bytes = bytes(256)
         self.type: FileType = FileType.NONE
+        self._dir_slot: int | None = None  # 1-based
         self.hidden: bool = False
         self.protected: bool = False
         self.name_raw: bytes = bytes()
@@ -328,6 +329,11 @@ class File:
         header_size = File.type_header_size(self.type)
         chunk_size = File.data_bytes_per_sector(self.type)
         return 0 if self.data is None else (header_size + len(self.data) + chunk_size - 1) // chunk_size
+
+    @property
+    def dir_slot(self) -> int | None:
+        """1-based directory slot number, or None"""
+        return self._dir_slot
 
     @property
     def bootable(self) -> bool:
