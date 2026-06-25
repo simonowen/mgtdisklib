@@ -69,14 +69,16 @@ DiskType.BDOS           # BDOS, used by Atom and Atom Lite.
 ### Disk Instance Functions
 
 ```python
-    def save(self, path: str, *, compressed: bool = False) -> None:
+    def save(self, path: str | None = None, *, compressed: bool = False) -> None:
         """Save disk content to disk image"""
     def to_image(self) -> Image:
         """Generate MGT disk image from current contents"""
-    def add_code_file(self, path: str, *, filename: str | None = None, at_index: int | None = None) -> None:
+    def add_code_file(self, path: str, *, filename: str | None = None, start: int = 0x8000, execute: int | None = None, at_index: int | None = None) -> None:
         """Add CODE file from path"""
-    def add_code_bytes(self, data: bytes, *, filename: str, at_index: int | None = None) -> None:
+    def add_code_bytes(self, data: bytes, *, filename: str, start: int = 0x8000, execute: int | None = None, at_index: int | None = None) -> None:
         """Add CODE file from bytes"""
+    def find(self, pattern: str) -> list[File]:
+        """Find files matching filename pattern, returns list of File objects"""
     def delete(self, pattern: str) -> list[str]:
         """Delete files matching filename pattern, returns list of deleted names"""
     def dir(self) -> str:
@@ -147,9 +149,9 @@ TimeFormat.BDOS17       # Packed format for used by BDOS 1.7 or later.
 ### File Class Functions
 
 ```python
-    def from_code_path(path: str, *, filename: str = None, start: int = 0x8000, execute: int = None) -> File:
+    def from_code_path(path: str, *, filename: str | None = None, start: int = 0x8000, execute: int | None = None) -> File:
         """Create CODE file from path"""
-    def from_code_bytes(data: bytes, filename: str, *, start: int = 0x8000, execute: int = None) -> File:
+    def from_code_bytes(data: bytes, filename: str, *, start: int = 0x8000, execute: int | None = None) -> File:
         """Create CODE file from bytes"""
     def from_dir(data: bytes) -> File:
         """Create from 256-byte directory entry data"""
